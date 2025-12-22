@@ -1,109 +1,89 @@
-// ====== ZÁKLAD CANVASU ======
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
 
-// ====== ČAS ======
+// ====== PARAMETRY (TADY LADÍŠ) ======
+const COUNT = 50;
+const CENTER_FORCE = 0.002;
+const SWIRL_FORCE = 0.002;
+const NOISE_FORCE = 0.3;
+const MAX_SPEED = 0.6;
+
+// ====== ČÁSTICE ======
+const particles = [];
+const center = { x: () => canvas.width / 2, y: () => canvas.height / 2 };
+
+for (let i = 0; i < COUNT; i++) {
+  particles.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    vx: 0,
+    vy: 0,
+    phase: Math.random() * Math.PI * 2,
+    seed: Math.random() * 1000
+  });
+}
+
 let time = 0;
-
-// ====== HRÁČ (POZICE + POHYB) ======
-let player = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  vx: 0,
-  vy: 0,
-  speed: 0.4,
-  moving: false
-};
-
-// ====== DRUHÁ ENTITA (TEN DRUHÝ) ======
-let other = {
-  x: canvas.width / 2 + 200,
-  y: canvas.height / 2,
-  baseRadius: 80
-};
-
-// ====== SRDEČNÍ RYTMUS (MODEL) ======
-let heartRate = 70;      // BPM
-let calmRate = 55;       // při objetí
-let pulseStrength = 20;  // velikost pulzu
-
-// ====== STAV OBJETÍ ======
-let hugging = false;
-
-// ====== INPUT (ZATÍM KLÁVESY) ======
-window.addEventListener("keydown", e => {
-  if (e.key === "ArrowUp") player.vy = -player.speed;
-  if (e.key === "ArrowDown") player.vy = player.speed;
-  if (e.key === "ArrowLeft") player.vx = -player.speed;
-  if (e.key === "ArrowRight") player.vx = player.speed;
-});
-
-window.addEventListener("keyup", () => {
-  player.vx = 0;
-  player.vy = 0;
-});
 
 // ====== HLAVNÍ SMYČKA ======
 function update() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // ---- POHYB HRÁČE ----
-  player.x += player.vx;
-  player.y += player.vy;
+  time += 0.01;
 
-  player.moving = Math.abs(player.vx) + Math.abs(player.vy) > 0;
+  particles.forEach(p => {
+    // vektor ke středu
+    const dx = center.x() - p.x;
+    const dy = center.y() - p.y;
 
-  // ---- MIN–MAX CHOVÁNÍ ----
-  if (!player.moving) {
-    // když stojí → osciluje mezi min a max
-    heartRate = 60 + Math.sin(time * 0.5) * 5;
-  } else {
-    // když se pohybuje → roste aktivita
-    heartRate = Math.min(120, heartRate + 0.05);
-  }
+    // vzdálenost
+    const dist = Math.sqrt(dx * dx + dy * dy) + 0.001;
 
-  // ---- VZDÁLENOST MEZI ENTITAMI ----
-  const dx = player.x - other.x;
-  const dy = player.y - other.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+    // normalizace
+    const nx = dx / dist;
+    const ny = dy / dist;
 
-  // ---- OBJETÍ ----
-  hugging = distance < 100;
+    // pulzující přitažlivost (shromažďování / rozpad)
+    const pulse = Math.sin(time + p.phase);
 
-  if (hugging) {
-    // rytmy se synchronizují a uklidňují
-    heartRate += (calmRate - heartRate) * 0.05;
-  }
+    // síly
+    p.vx += nx * CENTER_FORCE * pulse;
+    p.vy += ny * CENTER_FORCE * pulse;
 
-  // ---- PULZ ----
-  const frequency = heartRate / 60;
-  const pulse = Math.sin(time * frequency * Math.PI * 2);
+    // rotace kolem středu
+    p.vx += -ny * SWIRL_FORCE;
+    p.vy += nx * SWIRL_FORCE;
 
-  // ---- VIZUÁLNÍ TVARY ----
-  drawField(player.x, player.y, 100 + pulse * pulseStrength, hugging);
-  drawField(other.x, other.y, other.baseRadius, hugging);
+    // jemný „chaos“ (ale řízený)
+    p.vx += Math.sin(time + p.seed) * NOISE_FORCE * 0.001;
+    p.vy += Math.cos(time + p.seed) * NOISE_FORCE * 0.001;
 
-  time += 0.016;
+    // limit rychlosti
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (speed > MAX_SPEED) {
+      p.vx = (p.vx / speed) * MAX_SPEED;
+      p.vy = (p.vy / speed) * MAX_SPEED;
+    }
+
+    // pohyb
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // kreslení
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(160, 200, 255, 0.6)";
+    ctx.fill();
+  });
+
   requestAnimationFrame(update);
 }
 
-// ====== KRESLENÍ POLE ======
-function drawField(x, y, radius, hugging) {
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-
-  if (hugging) {
-    // OBJETÍ = ZMĚNA TVARU / STAVU
-    ctx.fillStyle = "rgba(200, 200, 255, 0.25)";
-  } else {
-    ctx.fillStyle = "rgba(120, 180, 255, 0.12)";
-  }
-
-  ctx.fill();
-}
-
-// START
 update();
