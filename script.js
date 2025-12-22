@@ -9,7 +9,7 @@ resize();
 window.addEventListener("resize", resize);
 
 // ====== PARAMETRY (TADY LADÍŠ) ======
-const COUNT = 50;
+const COUNT = 5;
 const CENTER_FORCE = 0.002;
 const SWIRL_FORCE = 0.002;
 const NOISE_FORCE = 0.3;
