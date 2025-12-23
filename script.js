@@ -1,29 +1,23 @@
 // ==========================================
-// KONFIGURAČNÍ PANEL (Estetika prachu a zrna)
+// KONFIGURACE (Zde ovládáš všechno)
 // ==========================================
 
-var PARTICLE_COUNT = 800;      // Mnohem více částic pro efekt prachu
-var CLOUD_RADIUS = 100;        // Základní rozptyl
-var SHAPE_IRREGULARITY = 0.9;  // Vysoká nepravidelnost (jako améba)
-var SHAPE_DETAIL = 3;          // Méně detailů pro hladší, organické tvary
+var PARTICLE_COUNT = 600;      // Počet zrnek (vysoký počet = hustý mrak)
+var BASE_RADIUS = 110;         // Základní velikost
+var SHAPE_WILDNESS = 1.2;      // Jak moc může tvar "ulétávat" do stran (0 = kruh, 2 = chaos)
 
-// VZHLED ČÁSTIC (Pískový/Prachový efekt)
-var DOT_MIN_SIZE = 0.3;        // Skoro neviditelné body
-var DOT_MAX_SIZE = 1.8;        // Drobné zrnka
-var OPACITY_BASE = 0.4;        // Velmi nízká průhlednost pro vrstvení
-var COLOR_VARIATION = 50;      // Rozsah šedi (aby to nebylo jen čistě bílé)
+// Vzhled (Estetika rentgenu/prachu)
+var DOT_SIZE = 1.5;            // Velikost zrnka
+var OPACITY = 0.6;             // Průhlednost
+var GRAIN_DENSITY = 0.12;      // Hustota šumu na pozadí
 
-// POHYB
-var SPEED = 0.45;
-var FRICTION = 0.93;
-var JITTER_STRENGTH = 4;       // Jemné chvění prachu
-
-// TEXTURA (Zásadní pro vzhled starého tisku/rentgenu)
-var GRAIN_DENSITY = 0.15;      // Hodně šumu
-var GRAIN_STRENGTH = 25;       // Jemný, ale všudypřítomný šum
+// Pohyb
+var SPEED = 0.6;               // Rychlost pohybu hráče
+var FRICTION = 0.92;           // Setrvačnost
+var MORPH_SPEED = 0.03;        // Jak rychle se tvar "přelévá" v čase
 
 // ==========================================
-// KÓD
+// JÁDRO JEDNOTLIVÝCH SHLUKŮ
 // ==========================================
 
 const canvas = document.getElementById("canvas");
@@ -40,7 +34,7 @@ const keys = {};
 window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
 
-class Player {
+class ParticleCloud {
     constructor(x, y, controls) {
         this.x = x;
         this.y = y;
@@ -49,20 +43,26 @@ class Player {
         this.controls = controls;
         this.particles = [];
         
+        // Vytvoření "DNA" tvaru - náhodné body po obvodu
+        this.shapeDNA = Array.from({length: 12}, () => Math.random() * SHAPE_WILDNESS);
+        
         for(let i = 0; i < PARTICLE_COUNT; i++) {
             let angle = Math.random() * Math.PI * 2;
-            let shapeNoise = 1 + (Math.sin(angle * SHAPE_DETAIL) * SHAPE_IRREGULARITY);
-            let dist = Math.sqrt(Math.random()) * CLOUD_RADIUS * shapeNoise;
-
-            // Každé zrnko má trochu jiný odstín šedé (vytváří texturu)
-            let gray = 255 - Math.random() * COLOR_VARIATION;
+            
+            // Výpočet poloměru na základě DNA tvaru (interpolace mezi body)
+            let dnaIndex = Math.floor((angle / (Math.PI * 2)) * this.shapeDNA.length);
+            let noiseFactor = this.shapeDNA[dnaIndex];
+            
+            // Náhodný rozptyl uvnitř nepravidelného tvaru
+            let dist = Math.sqrt(Math.random()) * BASE_RADIUS * (1 + noiseFactor);
 
             this.particles.push({
-                offX: Math.cos(angle) * dist,
-                offY: Math.sin(angle) * dist,
-                size: Math.random() * (DOT_MAX_SIZE - DOT_MIN_SIZE) + DOT_MIN_SIZE,
-                color: `rgba(${gray}, ${gray}, ${gray}, ${OPACITY_BASE})`,
-                seed: Math.random() * 100
+                angle: angle,
+                dist: dist,
+                size: Math.random() * DOT_SIZE,
+                // Každá částice má vlastní rychlost "vibrace"
+                driftSeed: Math.random() * 100,
+                driftSpeed: 0.01 + Math.random() * 0.04
             });
         }
     }
@@ -81,59 +81,62 @@ class Player {
     }
 
     draw(time) {
-        let compression = this.isHugging ? 0.3 : 1.0;
-        
-        // Žádný shadowBlur - chceme ostré/špinavé zrno
-        this.particles.forEach(p => {
-            let jtX = Math.sin(time * 0.05 + p.seed) * JITTER_STRENGTH;
-            let jtY = Math.cos(time * 0.05 + p.seed) * JITTER_STRENGTH;
-            
-            let drawX = this.x + (p.offX * compression) + jtX;
-            let drawY = this.y + (p.offY * compression) + jtY;
+        let compress = this.isHugging ? 0.2 : 1.0;
+        ctx.fillStyle = `rgba(255, 255, 255, ${OPACITY})`;
 
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            // Kreslíme čtverečky místo kruhů pro více "pixelatý/lo-fi" vzhled
-            ctx.fillRect(drawX, drawY, p.size, p.size);
+        this.particles.forEach(p => {
+            // Dynamické přelévání tvaru v čase (každá tečka trochu jinak)
+            let wave = Math.sin(time * p.driftSpeed + p.driftSeed) * 15;
+            
+            let currentDist = (p.dist + wave) * compress;
+            let targetX = this.x + Math.cos(p.angle) * currentDist;
+            let targetY = this.y + Math.sin(p.angle) * currentDist;
+
+            // Vykreslení zrnka prachu
+            ctx.fillRect(targetX, targetY, p.size, p.size);
         });
     }
 }
 
-const p1 = new Player(window.innerWidth * 0.3, window.innerHeight * 0.5, { up:'w', down:'s', left:'a', right:'d', hug:'q' });
-const p2 = new Player(window.innerWidth * 0.7, window.innerHeight * 0.5, { up:'arrowup', down:'arrowdown', left:'arrowleft', right:'arrowright', hug:'p' });
+// Inicializace
+const p1 = new ParticleCloud(window.innerWidth * 0.3, window.innerHeight * 0.5, { 
+    up: 'w', down: 's', left: 'a', right: 'd', hug: 'q' 
+});
+const p2 = new ParticleCloud(window.innerWidth * 0.7, window.innerHeight * 0.5, { 
+    up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', hug: 'p' 
+});
 
-function applyGrain() {
-    const imageData = ctx.createImageData(canvas.width, canvas.height);
-    const buffer = new Uint32Array(imageData.data.buffer);
-    for (let i = 0; i < buffer.length; i++) {
+function drawGrain() {
+    const imgData = ctx.createImageData(canvas.width, canvas.height);
+    const data = new Uint32Array(imgData.data.buffer);
+    for (let i = 0; i < data.length; i++) {
         if (Math.random() < GRAIN_DENSITY) {
-            let v = Math.random() * GRAIN_STRENGTH;
-            buffer[i] = (v << 24) | 0xFFFFFF; 
+            // Špinavé zrno (mix šedé)
+            let v = Math.random() * 40;
+            data[i] = (v << 24) | 0xFFFFFF;
         }
     }
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    
-    // Použijeme "soft-light" nebo "overlay" pro prolnutí
+    const temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    temp.getContext('2d').putImageData(imgData, 0, 0);
     ctx.globalCompositeOperation = "overlay";
-    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.drawImage(temp, 0, 0);
     ctx.globalCompositeOperation = "source-over";
 }
 
+let t = 0;
 function loop() {
-    // Čistě černé pozadí bez ghostingu (aby zrno zůstalo ostré)
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    t++;
     p1.update();
     p2.update();
-
-    p1.draw(Date.now() * 0.001);
-    p2.draw(Date.now() * 0.001);
+    p1.draw(t);
+    p2.draw(t);
     
-    applyGrain();
+    drawGrain();
     requestAnimationFrame(loop);
 }
 
