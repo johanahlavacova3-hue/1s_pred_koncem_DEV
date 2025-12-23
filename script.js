@@ -1,22 +1,23 @@
 // ==========================================
-// KONFIGURACE (Interferenční styl)
+// KONFIGURACE (Totální nepravidelnost)
 // ==========================================
 
-var GRID_SIZE = 35;           // Kolik bodů v řadě/sloupci (vytváří hustotu mřížky)
-var DOT_MAX_SIZE = 3.5;       // Maximální velikost bodu
-var SPACING = 5;              // Mezery mezi body v mřížce
+var PARTICLE_COUNT = 900;     // Hodně teček pro texturu prachu
+var NOISE_SCALE = 0.005;      // Jak moc jsou "chuchvalce" velké
+var MAX_DIST = 150;           // Maximální rozptyl od středu
 
-// VIZUÁLNÍ DNA (mění se při refresh)
-var WAVE_A = Math.random() * 0.1 + 0.05; 
-var WAVE_B = Math.random() * 0.1 + 0.05;
+// VZHLED (Drsné zrno)
+var DOT_SIZE = 1.6;           
+var OPACITY = 0.5;            
+var GRAIN_STRENGTH = 40;      
 
-// FYZIKA
-var SPEED = 0.6;
-var FRICTION = 0.92;
-var MORPH_SPEED = 0.04;       // Rychlost vlnění (animace)
+// POHYB
+var SPEED = 0.7;
+var FRICTION = 0.90;
+var CHAOS_STRENGTH = 25;      // Jak moc se tvar trhá a deformuje
 
 // ==========================================
-// JÁDRO JEDNOTLIVÝCH SHLUKŮ
+// JÁDRO PROGRAMU
 // ==========================================
 
 const canvas = document.getElementById("canvas");
@@ -33,16 +34,31 @@ const keys = {};
 window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
 
-class WaveShape {
+class IrregularCloud {
     constructor(x, y, controls) {
         this.x = x;
         this.y = y;
         this.vx = 0;
         this.vy = 0;
         this.controls = controls;
+        this.particles = [];
         
-        // Unikátní vlnění pro každého hráče
-        this.personalWave = Math.random() * 10;
+        // Unikátní "otisk" pro tento shluk, aby nebyl stejný jako druhý
+        this.seed = Math.random() * 1000;
+
+        for(let i = 0; i < PARTICLE_COUNT; i++) {
+            // Náhodné umístění, které budeme deformovat
+            let angle = Math.random() * Math.PI * 2;
+            let radius = Math.random() * MAX_DIST;
+            
+            this.particles.push({
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius,
+                size: Math.random() * DOT_SIZE,
+                // Individuální neklid každé částice
+                pSeed: Math.random() * 50 
+            });
+        }
     }
 
     update() {
@@ -59,58 +75,48 @@ class WaveShape {
     }
 
     draw(time) {
-        let hugEffect = this.isHugging ? 2.5 : 1.0;
-        
-        // Vytváříme mřížku bodů (podobně jako na tvých fotkách)
-        for (let i = -GRID_SIZE/2; i < GRID_SIZE/2; i++) {
-            for (let j = -GRID_SIZE/2; j < GRID_SIZE/2; j++) {
-                
-                let posX = i * SPACING;
-                let posY = j * SPACING;
+        let hug = this.isHugging ? 0.3 : 1.0;
+        ctx.fillStyle = `rgba(255, 255, 255, ${OPACITY})`;
 
-                // HLAVNÍ TRIK: Matematická deformace tvaru (Interference)
-                // Toto vytváří ty "vlnky" a nepravidelné okraje z tvých obrázků
-                let angle = Math.atan2(posY, posX);
-                let dist = Math.sqrt(posX * posX + posY * posY);
-                
-                // Tato funkce deformuje čtvercovou mřížku na organický tvar
-                let wave = Math.sin(dist * WAVE_A - time * MORPH_SPEED) * Math.cos(angle * 4 + this.personalWave);
-                
-                let offsetX = Math.cos(angle) * wave * 20 * hugEffect;
-                let offsetY = Math.sin(angle) * wave * 20 * hugEffect;
+        this.particles.forEach(p => {
+            // Vytváření organických deformací pomocí vln (simulace šumu)
+            // Toto rozbíjí jakýkoliv náznak kruhu nebo mřížky
+            let nX = (p.x + this.x) * NOISE_SCALE;
+            let nY = (p.y + this.y) * NOISE_SCALE;
+            
+            let noiseX = Math.sin(nX * 10 + time * 0.02 + this.seed) * CHAOS_STRENGTH;
+            let noiseY = Math.cos(nY * 10 + time * 0.03 + p.pSeed) * CHAOS_STRENGTH;
 
-                // Velikost bodu se mění podle interference (vytváří to ty vzorce)
-                let sizeFactor = Math.abs(wave) * DOT_MAX_SIZE;
-                
-                if (sizeFactor > 0.5) { // Kreslíme jen viditelné body
-                    ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + sizeFactor/DOT_MAX_SIZE})`;
-                    ctx.beginPath();
-                    ctx.arc(this.x + posX + offsetX, this.y + posY + offsetY, sizeFactor, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        }
+            let finalX = this.x + (p.x + noiseX) * hug;
+            let finalY = this.y + (p.y + noiseY) * hug;
+
+            // Kreslíme nepravidelné zrnko
+            ctx.fillRect(finalX, finalY, p.size, p.size);
+        });
     }
 }
 
-// Inicializace
-const p1 = new WaveShape(window.innerWidth * 0.3, window.innerHeight * 0.5, { 
+// Inicializace hráčů
+const p1 = new IrregularCloud(window.innerWidth * 0.3, window.innerHeight * 0.5, { 
     up: 'w', down: 's', left: 'a', right: 'd', hug: 'q' 
 });
-const p2 = new WaveShape(window.innerWidth * 0.7, window.innerHeight * 0.5, { 
+const p2 = new IrregularCloud(window.innerWidth * 0.7, window.innerHeight * 0.5, { 
     up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', hug: 'p' 
 });
 
-function drawGrain() {
+// Funkce pro drsnou texturu (Grain)
+function applyGrain() {
     ctx.globalCompositeOperation = "overlay";
-    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
-    ctx.fillRect(0,0,canvas.width, canvas.height);
+    for(let i = 0; i < 5; i++) { // Několik vrstev šumu pro "špinavý" vzhled
+        ctx.fillStyle = `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.03)`;
+        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 2);
+    }
     ctx.globalCompositeOperation = "source-over";
 }
 
 let t = 0;
 function loop() {
-    // Černé pozadí
+    // Čisté černé pozadí pro vyniknutí textury
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -121,7 +127,7 @@ function loop() {
     p1.draw(t);
     p2.draw(t);
     
-    drawGrain();
+    applyGrain();
     requestAnimationFrame(loop);
 }
 
