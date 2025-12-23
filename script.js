@@ -1,12 +1,15 @@
 // ==========================================
-// KONFIGURACE (Technický Fade & Systémové Stavy)
+// KONFIGURACE (Technický Fade Objekt)
 // ==========================================
 
-var TRAIL_LENGTH = 35;        // Délka fade stopy
-var PARTICLE_SIZE = 7;        // Velikost čtverce
-var SPEED = 0.75;             // Pohyb
-var FRICTION = 0.89;          
-var HUG_DIST = 50;            // Vzdálenost pro aktivaci objetí
+var TRAIL_LENGTH = 40;        // Délka stopy (počet článků v řadě)
+var PARTICLE_SIZE = 8;        // Velikost hlavního objektu
+var FADE_SPEED = 0.02;        // Jak rychle stopa mizí
+var SPACING = 4;              // Mezera mezi částicemi ve stopě
+
+// FYZIKA
+var SPEED = 0.8;
+var FRICTION = 0.88;          // Vyšší tření pro přesnější ovládání
 
 // ==========================================
 // JÁDRO PROGRAMU
@@ -26,20 +29,20 @@ const keys = {};
 window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
 
-class TechPlayer {
+class TechnicalObject {
     constructor(x, y, controls, color) {
         this.x = x;
         this.y = y;
         this.vx = 0;
         this.vy = 0;
-        this.controls = controls; // {up, down, left, right, identify, hug}
-        this.color = color;
+        this.controls = controls;
+        this.color = color; // Např. "255, 255, 255"
+        
+        // Pole pro ukládání historie pozic (vytváří fade stopu)
         this.history = [];
-        this.flash = 0; // Pro animaci identifikace
     }
 
     update() {
-        // 1. Pohyb
         if (keys[this.controls.up])    this.vy -= SPEED;
         if (keys[this.controls.down])  this.vy += SPEED;
         if (keys[this.controls.left])  this.vx -= SPEED;
@@ -50,82 +53,62 @@ class TechPlayer {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // 2. Stav: Identifikace (Blikání)
-        if (keys[this.controls.identify]) {
-            this.flash = 1.0;
-        }
-        if (this.flash > 0) this.flash -= 0.05;
-
-        // 3. Historie pro fade stopu
+        // Uložení aktuální pozice do historie
         this.history.unshift({x: this.x, y: this.y});
-        if (this.history.length > TRAIL_LENGTH) this.history.pop();
-        
-        this.isHugging = keys[this.controls.hug];
+
+        // Omezení délky stopy
+        if (this.history.length > TRAIL_LENGTH) {
+            this.history.pop();
+        }
     }
 
     draw() {
-        // Vykreslení stopy
+        // Vykreslení stopy (Fade)
         this.history.forEach((pos, index) => {
-            let progress = 1 - (index / TRAIL_LENGTH);
+            // Výpočet vlastností pro každý článek stopy
+            let progress = 1 - (index / TRAIL_LENGTH); // 1 (hlava) až 0 (konec)
             let size = PARTICLE_SIZE * progress;
-            // Pokud hráč "bliká" pro identifikaci, stopa je jasnější
-            let alpha = progress * (0.3 + this.flash * 0.7);
+            let alpha = progress * 0.8;
 
             ctx.fillStyle = `rgba(${this.color}, ${alpha})`;
+            
+            // Kreslíme čtverec nebo kosočtverec pro technický vzhled
+            ctx.beginPath();
             ctx.fillRect(pos.x - size/2, pos.y - size/2, size, size);
         });
 
-        // Hlava objektu
-        let headSize = PARTICLE_SIZE + (this.flash * 10);
-        ctx.fillStyle = this.flash > 0.5 ? "white" : `rgb(${this.color})`;
-        ctx.fillRect(this.x - headSize/2, this.y - headSize/2, headSize, headSize);
+        // Hlavní objekt (vždy nejjasnější)
+        ctx.fillStyle = `rgb(${this.color})`;
+        ctx.fillRect(this.x - PARTICLE_SIZE/2, this.y - PARTICLE_SIZE/2, PARTICLE_SIZE, PARTICLE_SIZE);
     }
 }
 
-// Inicializace hráčů se všemi klávesami
-const p1 = new TechPlayer(window.innerWidth * 0.3, window.innerHeight * 0.5, {
-    up: 'w', down: 's', left: 'a', right: 'd', identify: 'e', hug: 'q'
-}, "255, 255, 255");
+// Inicializace hráčů (přísné barvy, žádné záření)
+const p1 = new TechnicalObject(window.innerWidth * 0.3, window.innerHeight * 0.5, 
+    { up: 'w', down: 's', left: 'a', right: 'd' }, "255, 255, 255");
 
-const p2 = new TechPlayer(window.innerWidth * 0.7, window.innerHeight * 0.5, {
-    up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', identify: 'o', hug: 'p'
-}, "180, 180, 180");
+const p2 = new TechnicalObject(window.innerWidth * 0.7, window.innerHeight * 0.5, 
+    { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' }, "200, 200, 200");
 
-// Hustý monochromatický grain
-function drawGrain() {
-    ctx.fillStyle = "rgba(255,255,255,0.05)";
-    for(let i=0; i<400; i++) {
-        let x = Math.random() * canvas.width;
-        let y = Math.random() * canvas.height;
-        ctx.fillRect(x, y, 1, 1);
+// Jednoduchý šum pro texturu pozadí (grain)
+function drawStatic() {
+    ctx.fillStyle = `rgba(255,255,255,0.02)`;
+    for(let i=0; i<100; i++) {
+        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 1, 1);
     }
 }
 
 function loop() {
-    // Černé pozadí (bez stopy, tu dělá pole history)
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     p1.update();
     p2.update();
-
-    // Logika objetí (když jsou blízko a oba drží hug klávesu)
-    let dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
-    if (dist < HUG_DIST && p1.isHugging && p2.isHugging) {
-        // Vizuální propojení - linka mezi středy
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.setLineDash([2, 4]); // Technická přerušovaná čára
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
+    
     p1.draw();
     p2.draw();
     
-    drawGrain();
+    drawStatic();
     requestAnimationFrame(loop);
 }
 
