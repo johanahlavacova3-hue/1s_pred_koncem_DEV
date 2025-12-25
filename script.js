@@ -14,7 +14,7 @@ const ctx = canvas.getContext("2d");
 
 // --- Příprava Videa ---
 const videoSource = document.createElement("video");
-videoSource.src = "maja_wakl.mp4";
+videoSource.src = "maja_walk.mp4";
 videoSource.loop = true;
 videoSource.muted = true;
 videoSource.play().catch(e => console.log("Čekám na interakci uživatele pro spuštění videa..."));
