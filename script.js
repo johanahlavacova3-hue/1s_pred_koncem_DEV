@@ -1,16 +1,12 @@
 // ==========================================
 // KONFIGURACE
 // ==========================================
-
-var TRAIL_LENGTH = 25;        // Délka stopy (stejná pro všechny)
-var PARTICLE_SIZE = 6;        // Velikost
-var SPEED = 0.8;              // Síla akcelerace (stejná pro všechny)
-var FRICTION = 0.91;          // Klouzavost (stejná pro všechny)
-var NPC_COUNT = 130;          // Počet NPC
-
-// ==========================================
-// JÁDRO PROGRAMU
-// ==========================================
+const TRAIL_LENGTH = 20;
+const PARTICLE_SIZE = 6;
+const SPEED = 0.3;          // Pomalý, plynulý pohyb
+const FRICTION = 0.94;
+const HUG_DIST = 100;       // Větší dosah pro spojení
+const NPC_COUNT = 130;
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -22,7 +18,6 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-// Klávesy pro hráče
 const keys = {};
 window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
@@ -34,142 +29,127 @@ class TechEntity {
         this.vx = 0;
         this.vy = 0;
         this.isPlayer = isPlayer;
-        
-        // Hráč je čistě bílý, NPC jsou skoro stejné, jen miniaturně šedší, aby se hráč našel
-        this.color = isPlayer ? "255, 255, 255" : "200, 200, 200"; 
-        
+        this.color = isPlayer ? "255, 255, 255" : "150, 150, 150";
         this.history = [];
         
-        // --- AI LOGIKA PRO NPC (Virtuální ovladač) ---
-        // inputX/Y simuluje, jako by NPC drželo klávesu (-1 = vlevo/nahoru, 1 = vpravo/dolů, 0 = nic)
-        this.inputX = 0; 
+        this.flash = 0; 
+        this.isHugging = false;
+
+        // AI mozek
+        this.moveTimer = Math.random() * 100;
+        this.actionTimer = Math.random() * 200;
+        this.inputX = 0;
         this.inputY = 0;
-        this.aiTimer = 0; // Odpočet do změny rozhodnutí
     }
 
     update() {
-        // 1. ZÍSKÁNÍ VSTUPU (Input)
-        let accX = 0;
-        let accY = 0;
+        let ax = 0, ay = 0;
 
         if (this.isPlayer) {
-            // -- Hráč: poslouchá klávesnici --
-            if (keys['w']) accY = -1;
-            if (keys['s']) accY = 1;
-            if (keys['a']) accX = -1;
-            if (keys['d']) accX = 1;
-        } else {
-            // -- NPC: poslouchá svůj "mozek" --
-            this.aiTimer--;
+            if (keys['w']) ay = -1;
+            if (keys['s']) ay = 1;
+            if (keys['a']) ax = -1;
+            if (keys['d']) ax = 1;
             
-            // Každých pár snímků (náhodně 20 až 80) změní NPC své "klávesy"
-            if (this.aiTimer <= 0) {
-                // Rozhodování:
-                // 30% šance, že pustí klávesy a jen klouže (jako hráč)
-                // 70% šance, že vybere nový směr
-                if (Math.random() < 0.3) {
-                    this.inputX = 0;
-                    this.inputY = 0;
-                } else {
-                    this.inputX = Math.floor(Math.random() * 3) - 1; // -1, 0, nebo 1
-                    this.inputY = Math.floor(Math.random() * 3) - 1; 
-                }
-                
-                // Ochrana proti útěku z obrazovky:
-                // Pokud je moc u kraje, "zmáčkne" klávesu na druhou stranu
-                if (this.x < 50) this.inputX = 1;
-                if (this.x > canvas.width - 50) this.inputX = -1;
-                if (this.y < 50) this.inputY = 1;
-                if (this.y > canvas.height - 50) this.inputY = -1;
-
-                this.aiTimer = Math.random() * 60 + 20;
+            // Signál a Objetí pro hráče
+            if (keys['e']) this.flash = 1.0;
+            this.isHugging = keys['q'];
+        } else {
+            // NPC Logika pohybu
+            this.moveTimer--;
+            if (this.moveTimer <= 0) {
+                this.inputX = Math.floor(Math.random() * 3) - 1;
+                this.inputY = Math.floor(Math.random() * 3) - 1;
+                this.moveTimer = Math.random() * 100 + 50;
             }
-            accX = this.inputX;
-            accY = this.inputY;
+            ax = this.inputX;
+            ay = this.inputY;
+
+            // NPC náhodné akce
+            if (Math.random() < 0.005) this.flash = 1.0; // Náhodné E
+            
+            this.actionTimer--;
+            if (this.actionTimer <= 0) {
+                this.isHugging = !this.isHugging; // Náhodné přepnutí Q
+                this.actionTimer = Math.random() * 300 + 100;
+            }
+
+            // Hranice obrazovky
+            if (this.x < 50) this.vx += 0.5;
+            if (this.x > canvas.width - 50) this.vx -= 0.5;
+            if (this.y < 50) this.vy += 0.5;
+            if (this.y > canvas.height - 50) this.vy -= 0.5;
         }
 
-        // 2. APLIKACE FYZIKY (Identická pro všechny)
-        // Přičteme rychlost podle "stisknutých kláves"
-        this.vx += accX * SPEED;
-        this.vy += accY * SPEED;
-
-        // Pohyb
+        this.vx += ax * SPEED;
+        this.vy += ay * SPEED;
         this.x += this.vx;
         this.y += this.vy;
-
-        // Tření (Friction) - tohle dělá ten "floaty" pocit
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // 3. STOPA (Identická pro všechny)
+        if (this.flash > 0) this.flash -= 0.04;
+
         this.history.unshift({x: this.x, y: this.y});
         if (this.history.length > TRAIL_LENGTH) this.history.pop();
     }
 
     draw() {
         // Vykreslení stopy
-        this.history.forEach((pos, index) => {
-            let progress = 1 - (index / TRAIL_LENGTH);
-            let size = PARTICLE_SIZE * progress;
-            // NPC mají stopu malinko průhlednější, aby se to dalo vykreslit (performance)
-            // Ale chovají se vizuálně stejně
-            let alpha = progress * (this.isPlayer ? 0.4 : 0.15);
-
-            ctx.fillStyle = `rgba(${this.color}, ${alpha})`;
-            ctx.fillRect(pos.x - size/2, pos.y - size/2, size, size);
+        this.history.forEach((pos, i) => {
+            let opacity = (1 - i/TRAIL_LENGTH) * (this.isPlayer ? 0.4 : 0.15);
+            ctx.fillStyle = `rgba(${this.color}, ${opacity + this.flash * 0.5})`;
+            ctx.fillRect(pos.x - 2, pos.y - 2, 4, 4);
         });
 
-        // Hlava
-        ctx.fillStyle = `rgb(${this.color})`;
-        ctx.fillRect(this.x - PARTICLE_SIZE/2, this.y - PARTICLE_SIZE/2, PARTICLE_SIZE, PARTICLE_SIZE);
+        // Hlavní čtvereček (při E se zvětší)
+        let s = PARTICLE_SIZE + (this.flash * 15);
+        ctx.fillStyle = this.flash > 0.1 ? `rgba(255,255,255,${this.flash})` : `rgb(${this.color})`;
+        ctx.fillRect(this.x - s/2, this.y - s/2, s, s);
+
+        // Vizuální indikace Q (Objetí)
+        if (this.isHugging) {
+            ctx.strokeStyle = this.isPlayer ? "white" : "rgba(255,255,255,0.3)";
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 12, 0, Math.PI*2);
+            ctx.stroke();
+        }
     }
 }
 
-// --- Inicializace ---
+const entities = [];
+for(let i=0; i<NPC_COUNT; i++) entities.push(new TechEntity(Math.random()*canvas.width, Math.random()*canvas.height));
+const player = new TechEntity(canvas.width/2, canvas.height/2, true);
+entities.push(player);
 
-const hero = new TechEntity(window.innerWidth / 2, window.innerHeight / 2, true);
-
-const npcs = [];
-for (let i = 0; i < NPC_COUNT; i++) {
-    // Náhodná pozice startu
-    let x = Math.random() * window.innerWidth;
-    let y = Math.random() * window.innerHeight;
-    npcs.push(new TechEntity(x, y, false));
-}
-
-// Jemný šum
-function drawGrain() {
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    for(let i=0; i<500; i++) {
-        let x = Math.random() * canvas.width;
-        let y = Math.random() * canvas.height;
-        ctx.fillRect(x, y, 1, 1);
+function drawConnections() {
+    ctx.lineWidth = 2;
+    for (let i = 0; i < entities.length; i++) {
+        for (let j = i + 1; j < entities.length; j++) {
+            let a = entities[i];
+            let b = entities[j];
+            if (a.isHugging && b.isHugging) {
+                let d = Math.hypot(a.x - b.x, a.y - b.y);
+                if (d < HUG_DIST) {
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${1 - d/HUG_DIST})`;
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b.x, b.y);
+                    ctx.stroke();
+                }
+            }
+        }
     }
 }
 
 function loop() {
-    // Pozadí
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Update NPC
-    npcs.forEach(npc => {
-        npc.update();
-        npc.draw();
-    });
+    entities.forEach(e => e.update());
+    drawConnections();
+    entities.forEach(e => e.draw());
 
-    // Update Hráče (kreslíme ho posledního, aby byl nahoře)
-    hero.update();
-    hero.draw();
-    
-    // Zvýraznění hráče - malý kroužek kolem něj, abys věděl, který jsi ty v tom davu
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
-    ctx.beginPath();
-    ctx.arc(hero.x, hero.y, 20, 0, Math.PI*2);
-    ctx.stroke();
-
-    drawGrain();
     requestAnimationFrame(loop);
 }
-
 loop();
