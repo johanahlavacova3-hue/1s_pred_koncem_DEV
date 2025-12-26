@@ -4,10 +4,10 @@
 
 var TRAIL_LENGTH = 20;        
 var PARTICLE_SIZE = 6;        
-var SPEED = 0.45;             
+var SPEED = 0.2;             
 var FRICTION = 0.90;          
-var HUG_DIST = 90;            // Mírně zvětšený dosah
-var NPC_COUNT = 130;          
+var HUG_DIST = 100;            // Mírně zvětšený dosah
+var NPC_COUNT = 150;          
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
