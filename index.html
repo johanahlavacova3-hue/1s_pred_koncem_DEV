@@ -1,190 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <title>UMPRUM 130x SWARM</title>
-  <style>
-    body {
-      margin: 0;
-      background: black;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purple Swarm</title>
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            overflow: hidden; /* Skryje posuvníky */
+        }
+        canvas {
+            display: block;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
-  <script>
-    // ==========================================
-    // KONFIGURACE
-    // ==========================================
-
-    var NPC_COUNT = 130;          // Počet NPC
-    var TRAIL_LENGTH = 20;        // Zkrátil jsem trochu stopu kvůli výkonu při 130 lidech
-    var PARTICLE_SIZE = 5;        // Menší čtverečky pro lepší chaos
-    var SPEED = 0.8;              // Rychlost hráče
-    var NPC_SPEED = 0.4;          // Rychlost NPC (jsou pomalejší)
-    var FRICTION = 0.92;          // Setrvačnost
-    var CONNECT_DIST = 100;       // Vzdálenost pro automatické spojení
-
-    // ==========================================
-    // JÁDRO PROGRAMU
-    // ==========================================
-
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
-
-    const keys = {};
-    window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
-    window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
-
-    class TechEntity {
-        constructor(x, y, isPlayer) {
-            this.x = x;
-            this.y = y;
-            this.vx = 0;
-            this.vy = 0;
-            this.history = [];
-            this.isPlayer = isPlayer;
-
-            // Barva: Hráč je jasně bílý, NPC jsou šedivější
-            this.color = isPlayer ? "255, 255, 255" : "150, 150, 150";
-            
-            // Náhodný pohyb pro NPC
-            if (!isPlayer) {
-                this.angle = Math.random() * Math.PI * 2;
-                this.turnSpeed = (Math.random() - 0.5) * 0.1;
-            }
-        }
-
-        update() {
-            if (this.isPlayer) {
-                // --- OVLÁDÁNÍ HRÁČE ---
-                if (keys['w'] || keys['arrowup'])    this.vy -= SPEED;
-                if (keys['s'] || keys['arrowdown'])  this.vy += SPEED;
-                if (keys['a'] || keys['arrowleft'])  this.vx -= SPEED;
-                if (keys['d'] || keys['arrowright']) this.vx += SPEED;
-            } else {
-                // --- AI PRO NPC ---
-                // Náhodná změna směru
-                this.angle += (Math.random() - 0.5) * 0.2;
-                
-                // Aplikace rychlosti podle úhlu
-                this.vx += Math.cos(this.angle) * 0.05;
-                this.vy += Math.sin(this.angle) * 0.05;
-
-                // Omezení maximální rychlosti NPC
-                let velocity = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-                if (velocity > NPC_SPEED * 3) {
-                    this.vx *= 0.95;
-                    this.vy *= 0.95;
-                }
-
-                // --- ODRÁŽENÍ OD STĚN ---
-                if (this.x < 0) this.vx += 0.5;
-                if (this.x > canvas.width) this.vx -= 0.5;
-                if (this.y < 0) this.vy += 0.5;
-                if (this.y > canvas.height) this.vy -= 0.5;
-            }
-
-            // Fyzika pohybu
-            this.x += this.vx;
-            this.y += this.vy;
-            this.vx *= FRICTION;
-            this.vy *= FRICTION;
-
-            // Historie stopy
-            this.history.unshift({x: this.x, y: this.y});
-            if (this.history.length > TRAIL_LENGTH) this.history.pop();
-        }
-
-        draw() {
-            // Vykreslení stopy
-            this.history.forEach((pos, index) => {
-                let progress = 1 - (index / TRAIL_LENGTH);
-                // Hráč má stopu tlustší, NPC tenčí
-                let sizeBase = this.isPlayer ? PARTICLE_SIZE : PARTICLE_SIZE * 0.6;
-                let size = sizeBase * progress;
-                
-                let alpha = progress * (this.isPlayer ? 0.5 : 0.15); // NPC jsou méně vidět
-
-                ctx.fillStyle = `rgba(${this.color}, ${alpha})`;
-                ctx.fillRect(pos.x - size/2, pos.y - size/2, size, size);
-            });
-
-            // Vykreslení hlavy (samotný bod)
-            ctx.fillStyle = this.isPlayer ? "white" : `rgba(${this.color}, 0.8)`;
-            let headSize = this.isPlayer ? PARTICLE_SIZE + 2 : PARTICLE_SIZE;
-            ctx.fillRect(this.x - headSize/2, this.y - headSize/2, headSize, headSize);
-        }
-    }
-
-    // --- INICIALIZACE ---
-    const entities = [];
-
-    // 1. Vytvoříme HRÁČE (tebe)
-    const player = new TechEntity(window.innerWidth / 2, window.innerHeight / 2, true);
-    entities.push(player);
-
-    // 2. Vytvoříme NPC (ostatní)
-    for (let i = 0; i < NPC_COUNT; i++) {
-        let x = Math.random() * window.innerWidth;
-        let y = Math.random() * window.innerHeight;
-        entities.push(new TechEntity(x, y, false));
-    }
-
-    // Efekt zrna
-    function drawGrain() {
-        ctx.fillStyle = "rgba(255,255,255,0.03)";
-        for(let i=0; i<500; i++) { // Zvýšil jsem počet zrna pro atmosféru
-            let x = Math.random() * canvas.width;
-            let y = Math.random() * canvas.height;
-            ctx.fillRect(x, y, 1, 1);
-        }
-    }
-
-    function loop() {
-        // Čištění plátna s lehkým "fade" efektem pro blur, nebo čistá černá
-        ctx.fillStyle = "black";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Update a Draw všech entit
-        entities.forEach(entity => {
-            entity.update();
-            
-            // Logika spojení: Pokud je to NPC a je blízko hráče, nakresli čáru
-            if (!entity.isPlayer) {
-                let dx = player.x - entity.x;
-                let dy = player.y - entity.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-
-                if (dist < CONNECT_DIST) {
-                    let opacity = 1 - (dist / CONNECT_DIST);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.4})`;
-                    ctx.beginPath();
-                    ctx.moveTo(player.x, player.y);
-                    ctx.lineTo(entity.x, entity.y);
-                    ctx.stroke();
-                }
-            }
-
-            entity.draw();
-        });
-        
-        drawGrain();
-        requestAnimationFrame(loop);
-    }
-
-    loop();
-  </script>
+    <canvas id="canvas"></canvas>
+    <script src="script.js"></script>
 </body>
 </html>
