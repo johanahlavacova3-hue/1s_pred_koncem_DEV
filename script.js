@@ -1,70 +1,72 @@
-const canvas = document.getElementById('canvas');
+const canvas = document.getElementById('gridCanvas');
 const ctx = canvas.getContext('2d');
 
 let width, height;
-let keys = { q: false, e: false };
+const keys = { q: false, e: false };
 
-// Parametry mřížky
-const cols = 14;
-const rows = 14;
-const depth = 25; // Počet vrstev čtverců v dálce
-let speed = 0.015;
-let offset = 0;
+// Parametry mřížky podle obrázku
+const gridCount = 12;      // Počet sloupců a řad
+const depthLayers = 40;    // Počet čtverců v hloubce
+let speed = 0.005;         // Rychlost pohybu vpřed
+let movement = 0;
 
-// Nastavení velikosti plátna
 function resize() {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
 }
 
-// Sledování kláves
-window.addEventListener('keydown', (e) => {
-    const key = e.key.toLowerCase();
-    if (key === 'q' || key === 'e') keys[key] = true;
-});
-
-window.addEventListener('keyup', (e) => {
-    const key = e.key.toLowerCase();
-    if (key === 'q' || key === 'e') keys[key] = false;
-});
+window.addEventListener('resize', resize);
+window.addEventListener('keydown', (e) => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', (e) => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false; });
 
 function draw() {
-    // Čištění obrazovky s mírným průsvitem pro efekt "smearing" (volitelné)
-    ctx.fillStyle = 'black';
+    // Pozadí
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
 
     const centerX = width / 2;
     const centerY = height / 2;
+    
+    movement += speed;
+    if (movement > 1) movement = 0;
 
-    // Posun v čase pro efekt pohybu vpřed
-    offset += speed;
-    if (offset > 1) offset -= 1;
-
-    // Vykreslování odzadu dopředu
-    for (let z = depth; z > 0; z--) {
-        const zPos = z - offset;
-        const perspective = 500 / (zPos + 1); // Výpočet perspektivy
+    // Vykreslování od nejvzdálenějších (vzadu) po nejbližší (vpředu)
+    for (let z = depthLayers; z > 0; z--) {
+        const zPos = z - movement;
         
-        // Viditelnost (fade do dálky)
-        const opacity = Math.max(0, 1 - zPos / (depth * 0.7));
-        const size = 40 * perspective;
+        // Výpočet perspektivy (čím menší zPos, tím větší objekt)
+        const scale = 600 / (zPos * 15 + 1); 
+        const opacity = Math.min(1, (depthLayers - zPos) / (depthLayers * 0.7));
+        
+        // Nastavení vzhledu čáry
+        ctx.lineWidth = keys.q ? 2 : 0.8;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.6})`;
+        
+        // Efekt záře při stisknutí Q
+        if (keys.q) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "white";
+        } else {
+            ctx.shadowBlur = 0;
+        }
 
-        // Nastavení stylu čar
-        ctx.lineWidth = keys.q ? 2.5 : 1;
-        ctx.shadowBlur = keys.q ? 15 : 0;
-        ctx.shadowColor = "white";
-        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+        for (let i = -gridCount / 2; i <= gridCount / 2; i++) {
+            for (let j = -gridCount / 2; j <= gridCount / 2; j++) {
+                
+                // Pozice čtverce v prostoru
+                const x = centerX + i * (110 * scale);
+                const y = centerY + j * (110 * scale);
+                const size = 30 * scale;
 
-        for (let i = -cols / 2; i <= cols / 2; i++) {
-            for (let j = -rows / 2; j <= rows / 2; j++) {
-                const x = centerX + i * 120 * perspective;
-                const y = centerY + j * 120 * perspective;
+                // BLUR DO STRAN: Čím dál od středu, tím větší blur
+                const dist = Math.sqrt(i*i + j*j);
+                if (dist > 2) {
+                    ctx.filter = `blur(${dist * 0.8}px)`;
+                } else {
+                    ctx.filter = 'none';
+                }
 
-                // Blur efekt do stran: čím dál od středu, tím víc rozmazané
-                const distFromCenter = Math.sqrt(i * i + j * j);
-                ctx.filter = distFromCenter > 3 ? `blur(${distFromCenter * 0.6}px)` : 'none';
-
-                // Režim [E] - Propojení čarami k úběžnému bodu
+                // Efekt E: Propojení se středem (vytvoření tunelu)
                 if (keys.e) {
                     ctx.beginPath();
                     ctx.moveTo(x, y);
@@ -72,7 +74,7 @@ function draw() {
                     ctx.stroke();
                 }
 
-                // Vykreslení čtverce
+                // Vykreslení samotného čtverce
                 ctx.strokeRect(x - size / 2, y - size / 2, size, size);
             }
         }
@@ -81,7 +83,5 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
-// Inicializace
-window.addEventListener('resize', resize);
 resize();
 draw();
