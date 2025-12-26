@@ -1,22 +1,41 @@
 // ==========================================
-// KONFIGURACE - PROCEDURÁLNÍ BINÁRNÍ REŽIM
+// KONFIGURACE - BINÁRNÍ / AGRESIVNÍ REŽIM
 // ==========================================
-const TRAIL_LENGTH = 10;    
-const ENTITY_SIZE = 35;     // Základní měřítko postavy
-const SPEED = 0.7;          // Rychlost pohybu
-const FRICTION = 0.93;      
-const HUG_DIST = 120;       
-const NPC_COUNT = 100;      
+const TRAIL_LENGTH = 15;    
+const ENTITY_SIZE = 60;     
+const SPEED = 0.6;          
+const FRICTION = 0.92;      
+const HUG_DIST = 130;       
+const NPC_COUNT = 80;       
+
+// SEM VLOŽ SVŮJ BASE64 STRING
+const BASE64_VIDEO = "data:video/mp4;base64,TVV_J_BASE64_KOD_ZDE";
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// Ostrý look
-ctx.imageSmoothingEnabled = false;
+// Zakázání vyhlazování pro ten "pixel/binární" look
+const disableSmoothing = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+    ctx.msImageSmoothingEnabled = false;
+};
+
+const video = document.createElement("video");
+video.src = BASE64_VIDEO;
+video.loop = true;
+video.muted = true;
+video.playsInline = true;
+video.setAttribute("webkit-playsinline", "true");
+
+let videoReady = false;
+video.oncanplay = () => videoReady = true;
 
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    disableSmoothing();
 }
 window.addEventListener("resize", resize);
 resize();
@@ -36,49 +55,10 @@ class TechEntity {
         this.flash = 0; 
         this.isHugging = false;
         
-        // Animace chůze
-        this.walkCycle = Math.random() * Math.PI * 2;
-        this.walkSpeed = 0.15;
-
-        // AI
         this.moveTimer = Math.random() * 100;
         this.actionTimer = Math.random() * 200;
         this.inputX = 0;
         this.inputY = 0;
-    }
-
-    // --- VNITŘNÍ KÓDOVANÁ ANIMACE (Nahrazuje video) ---
-    drawStickman(ctx, x, y, scale, t, isPlayer) {
-        ctx.save();
-        ctx.translate(x, y);
-        
-        // Barva: Hráč čistě bílá, NPC šedobílá
-        ctx.fillStyle = isPlayer ? "white" : "rgba(200, 200, 200, 0.8)";
-        if (this.flash > 0.1) ctx.fillStyle = "white";
-
-        // Výpočet pohybu končetin (binární styl)
-        let legMove = Math.sin(t) * 12;
-        let armMove = Math.cos(t) * 8;
-        let headBob = Math.abs(Math.cos(t * 2)) * 3;
-
-        // Vše kreslíme jako "bloky" (čtverečky), aby to vypadalo jako tvoje video
-        
-        // Hlava
-        ctx.fillRect(-4, -25 - headBob, 8, 8);
-        
-        // Tělo
-        ctx.fillRect(-3, -18 - headBob, 6, 12);
-        
-        // Ruce (pokud drží Q, zvedne je)
-        let hugOffset = this.isHugging ? -15 : 0;
-        ctx.fillRect(-8, -16 + armMove + hugOffset, 4, 8); // Levá
-        ctx.fillRect(4, -16 - armMove + hugOffset, 4, 8);  // Pravá
-        
-        // Nohy
-        ctx.fillRect(-6, -6 + legMove, 4, 10);  // Levá
-        ctx.fillRect(2, -6 - legMove, 4, 10);   // Pravá
-
-        ctx.restore();
     }
 
     update() {
@@ -98,57 +78,57 @@ class TechEntity {
                 this.moveTimer = Math.random() * 60 + 20;
             }
             ax = this.inputX; ay = this.inputY;
-            if (Math.random() < 0.005) this.flash = 1.2;
+            
+            if (Math.random() < 0.01) this.flash = 1.2;
             this.actionTimer--;
             if (this.actionTimer <= 0) {
                 this.isHugging = !this.isHugging;
-                this.actionTimer = Math.random() * 200 + 100;
+                this.actionTimer = Math.random() * 200 + 50;
             }
         }
 
         this.vx += ax * SPEED; this.vy += ay * SPEED;
         this.x += this.vx; this.y += this.vy;
         this.vx *= FRICTION; this.vy *= FRICTION;
-
-        // Rychlost animace chůze se odvíjí od reálného pohybu
-        let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        this.walkCycle += currentSpeed * this.walkSpeed + 0.05;
-
+        
         if (this.flash > 0) this.flash -= 0.05;
 
-        // Odraz od stěn
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1.2;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1.2;
+        
         this.history.unshift({x: this.x, y: this.y});
         if (this.history.length > TRAIL_LENGTH) this.history.pop();
     }
 
     draw() {
-        // Stopa (digitální šum)
         this.history.forEach((pos, i) => {
-            if (i % 2 === 0) {
-                let op = (1 - i / TRAIL_LENGTH) * 0.2;
+            if (i % 3 === 0) {
+                let op = (1 - i / TRAIL_LENGTH) * (this.isPlayer ? 0.4 : 0.1);
                 ctx.fillStyle = `rgba(255, 255, 255, ${op})`;
                 ctx.fillRect(Math.floor(pos.x), Math.floor(pos.y), 2, 2);
             }
         });
 
-        // Samotná animovaná postavička
-        this.drawStickman(ctx, this.x, this.y, 1, this.walkCycle, this.isPlayer);
+        let s = ENTITY_SIZE + (this.flash * 40);
+        
+        ctx.save();
+        if (videoReady) {
+            if (!this.isPlayer) ctx.globalAlpha = 0.6;
+            
+            if (this.flash > 0.5) {
+                ctx.filter = `brightness(${1 + this.flash}) contrast(200%)`;
+            } else if (!this.isPlayer) {
+                ctx.filter = `contrast(150%) brightness(0.8)`;
+            }
 
-        // Flash efekt
-        if (this.flash > 0.5) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${this.flash * 0.3})`;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, 30 * this.flash, 0, Math.PI*2);
-            ctx.fill();
+            ctx.drawImage(video, Math.floor(this.x - s/2), Math.floor(this.y - s/2), Math.floor(s), Math.floor(s));
         }
+        ctx.restore();
 
-        // Q (Objetí) - Čtvercový zaměřovač
         if (this.isHugging) {
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-            ctx.strokeRect(this.x - 20, this.y - 30, 40, 50);
+            ctx.strokeStyle = this.isPlayer ? "white" : "rgba(255,255,255,0.3)";
+            ctx.lineWidth = this.isPlayer ? 2 : 1;
+            ctx.strokeRect(this.x - s/2 - 5, this.y - s/2 - 5, s+10, s+10);
         }
     }
 }
@@ -166,24 +146,29 @@ function drawConnections() {
             if (a.isHugging && b.isHugging) {
                 let d = Math.hypot(a.x - b.x, a.y - b.y);
                 if (d < HUG_DIST) {
-                    ctx.moveTo(a.x, a.y);
-                    ctx.lineTo(b.x, b.y);
+                    ctx.moveTo(Math.floor(a.x), Math.floor(a.y));
+                    ctx.lineTo(Math.floor(b.x), Math.floor(b.y));
                 }
             }
         }
     }
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 0.5;
     ctx.stroke();
 }
 
 function loop() {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
     entities.forEach(e => e.update());
     drawConnections();
     entities.forEach(e => e.draw());
     requestAnimationFrame(loop);
 }
+
+window.addEventListener('click', () => {
+    video.play();
+}, { once: true });
 
 loop();
