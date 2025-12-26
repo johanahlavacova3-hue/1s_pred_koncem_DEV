@@ -4,7 +4,7 @@
 
 var NPC_COUNT = 130;          
 var PARTICLE_SIZE = 5;        
-var SPEED = 0.01;             
+var SPEED = 0.1;             
 var FRICTION = 0.90;          
 var HUG_DIST = 10;           // Vzdálenost, kdy se mraky začnou natahovat k sobě
 var TRAIL_LENGTH = 15;        
