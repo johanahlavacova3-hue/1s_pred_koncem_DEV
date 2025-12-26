@@ -3,10 +3,10 @@
 // ==========================================
 
 var TRAIL_LENGTH = 30;        // Délka stopy
-var PARTICLE_SIZE = 6;        // Velikost čtverce
-var SPEED = 0.35;             // VÝRAZNĚ ZPOMALENO (původně 0.8)
-var FRICTION = 0.93;          // Větší klouzavost (původně 0.91) - plavou v prostoru
-var HUG_DIST = 70;            // Vzdálenost, na kterou se spojí čára
+var PARTICLE_SIZE = 9;        // Velikost bublin
+var SPEED = 0.35;             // Rychlost pohybu
+var FRICTION = 0.93;          // "Klouzavost"
+var HUG_DIST = 70;            // Vzdálenost pro spojení
 var NPC_COUNT = 130;          // Počet NPC
 
 // ==========================================
@@ -36,19 +36,20 @@ class TechEntity {
         this.vy = 0;
         this.isPlayer = isPlayer;
         
-        // Barva
-        this.baseColor = isPlayer ? "255, 255, 255" : "180, 180, 180"; 
+        // --- BARVY (Fialová paleta) ---
+        // Hráč je světlý, NPC sytější fialová
+        this.baseColor = isPlayer ? "240, 230, 255" : "180, 160, 255"; 
         this.history = [];
         
         // Stavy
-        this.flash = 0;      // E (Identify) - 0.0 až 1.0
-        this.isHugging = false; // Q (Hug) - true/false
+        this.flash = 0;      
+        this.isHugging = false; 
         
-        // --- AI LOGIKA (Mozek NPC) ---
+        // --- AI LOGIKA ---
         this.inputX = 0; 
         this.inputY = 0;
         this.moveTimer = 0;
-        this.hugTimer = Math.random() * 500; // Každý má jiný cyklus nálady na objetí
+        this.hugTimer = Math.random() * 500; 
     }
 
     update() {
@@ -57,50 +58,45 @@ class TechEntity {
         let accY = 0;
 
         if (this.isPlayer) {
-            // HRÁČ: Poslouchá reálnou klávesnici
+            // Ovládání hráče
             if (keys['w']) accY = -1;
             if (keys['s']) accY = 1;
             if (keys['a']) accX = -1;
             if (keys['d']) accX = 1;
-
-            // Akce
-            if (keys['e']) this.flash = 1.0; // Bliknutí
-            this.isHugging = keys['q'];      // Držení objetí
+            if (keys['e']) this.flash = 1.0; 
+            this.isHugging = keys['q'];      
         } 
         else {
-            // NPC: Simulace chování
-            
-            // a) Pohyb (WASD)
+            // AI pro NPC
             this.moveTimer--;
             if (this.moveTimer <= 0) {
-                // 40% šance, že nic nedělá (jen pluje), 60% že změní směr
                 if (Math.random() < 0.4) {
                     this.inputX = 0; this.inputY = 0;
                 } else {
                     this.inputX = Math.floor(Math.random() * 3) - 1; 
                     this.inputY = Math.floor(Math.random() * 3) - 1; 
                 }
-                // Odrážení od krajů, aby neutekli pryč
+                
+                // Odrážení od okrajů
                 if (this.x < 50) this.inputX = 1;
                 if (this.x > canvas.width - 50) this.inputX = -1;
                 if (this.y < 50) this.inputY = 1;
                 if (this.y > canvas.height - 50) this.inputY = -1;
 
-                this.moveTimer = Math.random() * 80 + 30; // Nové rozhodnutí za chvíli
+                this.moveTimer = Math.random() * 80 + 30; 
             }
             accX = this.inputX;
             accY = this.inputY;
 
-            // b) Blikání (E) - Náhodně občas bliknou
-            if (Math.random() < 0.003) { // Malá šance každý frame
+            // Náhodné bliknutí
+            if (Math.random() < 0.003) { 
                 this.flash = 1.0;
             }
 
-            // c) Objetí (Q) - NPC střídá stavy, kdy "chce" a "nechce"
+            // Logika objetí (střídání nálad)
             this.hugTimer--;
             if (this.hugTimer <= 0) {
-                this.isHugging = !this.isHugging; // Přepne stav
-                // Pokud zapne hug, drží ho kratší dobu (cca 2-3s), pauza je delší
+                this.isHugging = !this.isHugging; 
                 this.hugTimer = this.isHugging ? (Math.random() * 150 + 50) : (Math.random() * 500 + 200);
             }
         }
@@ -113,7 +109,6 @@ class TechEntity {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // Blikání mizí
         if (this.flash > 0) this.flash -= 0.03;
 
         // --- 3. STOPA ---
@@ -122,33 +117,36 @@ class TechEntity {
     }
 
     draw() {
-        // Vykreslení stopy
+        // Vykreslení stopy (ocas) - KRUHY
         this.history.forEach((pos, index) => {
             let progress = 1 - (index / TRAIL_LENGTH);
-            let size = PARTICLE_SIZE * progress;
-            // Výpočet průhlednosti: NPC jsou méně výrazná, ale pokud bliknou (E), září
-            let baseAlpha = this.isPlayer ? 0.4 : 0.15;
+            let size = PARTICLE_SIZE * progress; 
+            
+            let baseAlpha = this.isPlayer ? 0.5 : 0.25; 
             let flashBonus = this.flash * 0.6; 
             let alpha = progress * (baseAlpha + flashBonus);
 
             ctx.fillStyle = `rgba(${this.baseColor}, ${alpha})`;
-            ctx.fillRect(pos.x - size/2, pos.y - size/2, size, size);
+            
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
         });
 
-        // Vykreslení hlavy
+        // Vykreslení hlavy - KRUH
         let headSize = PARTICLE_SIZE + (this.flash * 8);
-        
-        // Barva hlavy (pokud bliká, jde do bíla)
         ctx.fillStyle = this.flash > 0.5 ? "white" : `rgb(${this.baseColor})`;
-        ctx.fillRect(this.x - headSize/2, this.y - headSize/2, headSize, headSize);
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, headSize / 2, 0, Math.PI * 2);
+        ctx.fill();
 
-        // INDIKACE OBJETÍ (Q)
-        // Pokud entita drží Q, má kolem sebe tenký kroužek
+        // Indikace objetí (Q)
         if (this.isHugging) {
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 + Math.random()*0.1})`; // Jemně problikává
+            ctx.strokeStyle = `rgba(230, 220, 255, ${0.1 + Math.random()*0.1})`; 
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, 15, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, 18, 0, Math.PI * 2);
             ctx.stroke();
         }
     }
@@ -158,22 +156,23 @@ class TechEntity {
 
 const entities = [];
 
-// Přidáme hráče (index 0)
+// Hráč
 const player = new TechEntity(window.innerWidth/2, window.innerHeight/2, true);
 entities.push(player);
 
-// Přidáme NPC
+// NPC - Startují ve shluku uprostřed (Swarm efekt)
 for (let i = 0; i < NPC_COUNT; i++) {
-    entities.push(new TechEntity(
-        Math.random() * window.innerWidth,
-        Math.random() * window.innerHeight,
-        false
-    ));
+    let angle = Math.random() * Math.PI * 2;
+    let radius = Math.random() * 200; // Rozptyl od středu
+    let startX = (window.innerWidth / 2) + Math.cos(angle) * radius;
+    let startY = (window.innerHeight / 2) + Math.sin(angle) * radius;
+
+    entities.push(new TechEntity(startX, startY, false));
 }
 
-// Zrnění
+// Zrnění (jemně fialové)
 function drawGrain() {
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillStyle = "rgba(200, 180, 255, 0.03)";
     for(let i=0; i<400; i++) {
         ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1, 1);
     }
@@ -187,32 +186,27 @@ function loop() {
     entities.forEach(e => e.update());
 
     // 2. Vykreslení spojení (Logic Hug)
-    // Procházíme entity a hledáme páry, co jsou blízko a oba drží Q
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.strokeStyle = "rgba(230, 220, 255, 0.3)"; // Fialová linka
     ctx.lineWidth = 1;
     
-    // Optimalizovaný cyklus (nekontroluje každého s každým dvakrát)
     for (let i = 0; i < entities.length; i++) {
         let e1 = entities[i];
-        if (!e1.isHugging) continue; // Pokud první nedrží Q, nezajímá nás
+        if (!e1.isHugging) continue; 
 
         for (let j = i + 1; j < entities.length; j++) {
             let e2 = entities[j];
-            if (!e2.isHugging) continue; // Pokud druhý nedrží Q, nezajímá nás
+            if (!e2.isHugging) continue; 
 
-            // Změření vzdálenosti
             let dx = e1.x - e2.x;
             let dy = e1.y - e2.y;
-            let distSq = dx*dx + dy*dy; // Používáme mocninu pro rychlost (odmocnina je drahá)
+            let distSq = dx*dx + dy*dy; 
 
             if (distSq < HUG_DIST * HUG_DIST) {
-                // JSOU BLÍZKO A OBA DRŽÍ Q -> SPOJIT
                 ctx.beginPath();
                 ctx.moveTo(e1.x, e1.y);
                 ctx.lineTo(e2.x, e2.y);
                 ctx.stroke();
                 
-                // Malý efekt, že se "našli" - oba trochu probliknou
                 if (e1.flash < 0.2) e1.flash += 0.05;
                 if (e2.flash < 0.2) e2.flash += 0.05;
             }
@@ -221,12 +215,6 @@ function loop() {
 
     // 3. Vykreslení entit
     entities.forEach(e => e.draw());
-
-    // Indikátor, kdo jsi ty (malá tečka navíc nad hráčem, volitelné)
-    /*
-    ctx.fillStyle = "red";
-    ctx.fillRect(player.x - 1, player.y - 10, 2, 2);
-    */
 
     drawGrain();
     requestAnimationFrame(loop);
