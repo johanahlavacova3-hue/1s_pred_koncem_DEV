@@ -1,127 +1,95 @@
-// ==========================================
-// KONFIGURACE
-// ==========================================
-const NPC_COUNT = 130;
-const PIXELS_PER_ENTITY = 12; // Kolik "teček" tvoří mlhu jednoho hráče
-const MIST_SPREAD = 15;       // Jak moc je mlha rozptýlená kolem středu entity
-const PIXEL_SIZE = 2;         // Velikost jednoho pixelu mlhy
-const SPEED = 0.35;
-const FRICTION = 0.93;
-const TRAIL_LENGTH = 10;      // Délka stopy každého pixelu
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+let w, h;
+const keys = { q: false, e: false };
+
+// Nastavení mřížky přesně podle tvého obrázku
+const GRID_COUNT = 10;     // Kolik čtverců v řadě
+const DEPTH_LAYERS = 40;   // Hloubka tunelu
+const SPACING = 150;       // Rozestupy
+let progress = 0;
+let speed = 0.005;
 
 function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    w = canvas.width = window.innerWidth;
+    h = canvas.innerHeight = window.innerHeight;
 }
-window.addEventListener("resize", resize);
-resize();
 
-const keys = {};
-window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
-window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
+window.addEventListener('resize', resize);
+window.addEventListener('keydown', e => { 
+    const key = e.key.toLowerCase();
+    if(key in keys) keys[key] = true; 
+});
+window.addEventListener('keyup', e => { 
+    const key = e.key.toLowerCase();
+    if(key in keys) keys[key] = false; 
+});
 
-class TechEntity {
-    constructor(x, y, isPlayer = false) {
-        this.x = x;
-        this.y = y;
-        this.vx = 0;
-        this.vy = 0;
-        this.isPlayer = isPlayer;
-        this.baseColor = isPlayer ? "255, 255, 255" : "180, 160, 255";
+function draw() {
+    // Pozadí
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, w, h);
+
+    progress += speed;
+    if (progress > 1) progress = 0;
+
+    const centerX = w / 2;
+    const centerY = h / 2;
+
+    // Vykreslování od nejvzdálenějších
+    for (let z = DEPTH_LAYERS; z > 0; z--) {
+        const currentZ = z - progress;
+        const scale = 500 / (currentZ * 15 + 1); // Perspektiva
+        const alpha = Math.max(0, 1 - (currentZ / DEPTH_LAYERS));
         
-        // Vytvoření vnitřních pixelů mlhy pro tuto entitu
-        this.pixels = [];
-        for (let i = 0; i < PIXELS_PER_ENTITY; i++) {
-            this.pixels.push({
-                offX: (Math.random() - 0.5) * MIST_SPREAD,
-                offY: (Math.random() - 0.5) * MIST_SPREAD,
-                history: []
-            });
-        }
-
-        // AI logika
-        this.inputX = 0;
-        this.inputY = 0;
-        this.moveTimer = 0;
-    }
-
-    update() {
-        let accX = 0, accY = 0;
-
-        if (this.isPlayer) {
-            if (keys['w']) accY = -1;
-            if (keys['s']) accY = 1;
-            if (keys['a']) accX = -1;
-            if (keys['d']) accX = 1;
+        // Základní styl čáry
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+        ctx.lineWidth = keys.q ? 2 : 1;
+        
+        // Efekt záře (pouze pokud je stisknuto Q - je to náročné na výkon)
+        if (keys.q) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'white';
         } else {
-            this.moveTimer--;
-            if (this.moveTimer <= 0) {
-                this.inputX = Math.random() < 0.4 ? 0 : Math.floor(Math.random() * 3) - 1;
-                this.inputY = Math.random() < 0.4 ? 0 : Math.floor(Math.random() * 3) - 1;
-                this.moveTimer = Math.random() * 80 + 30;
-            }
-            // Odrážení od krajů
-            if (this.x < 50) this.inputX = 1;
-            if (this.x > canvas.width - 50) this.inputX = -1;
-            if (this.y < 50) this.inputY = 1;
-            if (this.y > canvas.height - 50) this.inputY = -1;
-            accX = this.inputX;
-            accY = this.inputY;
+            ctx.shadowBlur = 0;
         }
 
-        this.vx += accX * SPEED;
-        this.vy += accY * SPEED;
-        this.x += this.vx;
-        this.y += this.vy;
-        this.vx *= FRICTION;
-        this.vy *= FRICTION;
+        for (let x = -GRID_COUNT / 2; x <= GRID_COUNT / 2; x++) {
+            for (let y = -GRID_COUNT / 2; y <= GRID_COUNT / 2; y++) {
+                
+                const posX = centerX + x * SPACING * scale;
+                const posY = centerY + y * SPACING * scale;
+                const size = 30 * scale;
 
-        // Aktualizace pixelů mlhy
-        this.pixels.forEach(p => {
-            // Pixely jemně vibrují kolem středu entity
-            p.offX += (Math.random() - 0.5) * 2;
-            p.offY += (Math.random() - 0.5) * 2;
-            // Návratová síla k centru entity
-            p.offX *= 0.95;
-            p.offY *= 0.95;
+                // Místo náročného filtru blur používáme "špinavé čáry" pro efekt z obrázku
+                const dist = Math.sqrt(x*x + y*y);
+                
+                // Klávesa E: Propojení
+                if (keys.e) {
+                    ctx.globalAlpha = alpha * 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(posX, posY);
+                    ctx.lineTo(centerX, centerY);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
 
-            p.history.unshift({ x: this.x + p.offX, y: this.y + p.offY });
-            if (p.history.length > TRAIL_LENGTH) p.history.pop();
-        });
+                // Vykreslení čtverce s lehkým chvěním (jitter) jako na screenshotu
+                const shift = (Math.random() - 0.5) * (dist * 0.5);
+                
+                ctx.strokeRect(
+                    posX - size / 2 + shift, 
+                    posY - size / 2 + shift, 
+                    size, 
+                    size
+                );
+            }
+        }
     }
 
-    draw() {
-        this.pixels.forEach(p => {
-            p.history.forEach((pos, index) => {
-                let progress = 1 - (index / TRAIL_LENGTH);
-                let alpha = progress * (this.isPlayer ? 0.6 : 0.3);
-                ctx.fillStyle = `rgba(${this.baseColor}, ${alpha})`;
-                // Kreslíme čtverečky (pixely)
-                ctx.fillRect(pos.x, pos.y, PIXEL_SIZE, PIXEL_SIZE);
-            });
-        });
-    }
+    requestAnimationFrame(draw);
 }
 
-const entities = [];
-entities.push(new TechEntity(window.innerWidth / 2, window.innerHeight / 2, true));
-
-for (let i = 0; i < NPC_COUNT; i++) {
-    entities.push(new TechEntity(Math.random() * canvas.width, Math.random() * canvas.height, false));
-}
-
-function loop() {
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    entities.forEach(e => {
-        e.update();
-        e.draw();
-    });
-
-    requestAnimationFrame(loop);
-}
-loop();
+resize();
+draw();
