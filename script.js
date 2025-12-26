@@ -1,81 +1,87 @@
-const canvas = document.getElementById('gridCanvas');
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let width, height;
+let w, h;
 const keys = { q: false, e: false };
 
-// Parametry mřížky podle obrázku
-const gridCount = 12;      // Počet sloupců a řad
-const depthLayers = 40;    // Počet čtverců v hloubce
-let speed = 0.005;         // Rychlost pohybu vpřed
-let movement = 0;
+// Konfigurace mřížky
+const GRID_SIZE = 12;      // Počet čtverců v jedné rovině
+const DEPTH_LAYERS = 35;   // Kolik vrstev vidíme do dálky
+const SPACING = 150;       // Mezery mezi čtverci
+let speed = 0.007;         // Rychlost pohybu
+let progress = 0;          // Aktuální posun v čase
 
 function resize() {
-    width = canvas.width = window.innerWidth;
-    height = canvas.height = window.innerHeight;
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
 }
 
 window.addEventListener('resize', resize);
-window.addEventListener('keydown', (e) => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true; });
-window.addEventListener('keyup', (e) => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keydown', e => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', e => { if(e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false; });
 
 function draw() {
-    // Pozadí
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    // Čistě černý podklad
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, w, h);
 
-    const centerX = width / 2;
-    const centerY = height / 2;
-    
-    movement += speed;
-    if (movement > 1) movement = 0;
+    progress += speed;
+    if (progress > 1) progress -= 1;
 
-    // Vykreslování od nejvzdálenějších (vzadu) po nejbližší (vpředu)
-    for (let z = depthLayers; z > 0; z--) {
-        const zPos = z - movement;
+    // Vykreslování od nejvzdálenějších po nejbližší (Z-sorting)
+    for (let z = DEPTH_LAYERS; z > 0; z--) {
+        const currentZ = z - progress;
         
-        // Výpočet perspektivy (čím menší zPos, tím větší objekt)
-        const scale = 600 / (zPos * 15 + 1); 
-        const opacity = Math.min(1, (depthLayers - zPos) / (depthLayers * 0.7));
+        // Perspektivní koeficient (čím menší Z, tím větší měřítko)
+        const scale = 400 / (currentZ * 10 + 1);
         
-        // Nastavení vzhledu čáry
-        ctx.lineWidth = keys.q ? 2 : 0.8;
-        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.6})`;
+        // Efekt mlhy/vzdálenosti (čím dál, tím víc mizí)
+        const alpha = Math.max(0, 1 - (currentZ / DEPTH_LAYERS));
         
-        // Efekt záře při stisknutí Q
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
+        ctx.lineWidth = keys.q ? 2.5 : 1;
+
+        // Nastavení záře (Bloom)
         if (keys.q) {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "white";
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = 'white';
         } else {
             ctx.shadowBlur = 0;
         }
 
-        for (let i = -gridCount / 2; i <= gridCount / 2; i++) {
-            for (let j = -gridCount / 2; j <= gridCount / 2; j++) {
+        for (let x = -GRID_SIZE / 2; x <= GRID_SIZE / 2; x++) {
+            for (let y = -GRID_SIZE / 2; y <= GRID_SIZE / 2; y++) {
                 
-                // Pozice čtverce v prostoru
-                const x = centerX + i * (110 * scale);
-                const y = centerY + j * (110 * scale);
+                // Výpočet pozice na obrazovce
+                const screenX = w / 2 + x * SPACING * scale;
+                const screenY = h / 2 + y * SPACING * scale;
                 const size = 30 * scale;
 
-                // BLUR DO STRAN: Čím dál od středu, tím větší blur
-                const dist = Math.sqrt(i*i + j*j);
-                if (dist > 2) {
-                    ctx.filter = `blur(${dist * 0.8}px)`;
+                // Rozmazání (Blur) do stran - simulace optické vady
+                const distFromCenter = Math.sqrt(x * x + y * y);
+                if (distFromCenter > 2) {
+                    ctx.filter = `blur(${distFromCenter * 0.7}px)`;
                 } else {
                     ctx.filter = 'none';
                 }
 
-                // Efekt E: Propojení se středem (vytvoření tunelu)
+                // Funkce [E]: Propojení se sousedními vrstvami nebo středem
                 if (keys.e) {
                     ctx.beginPath();
-                    ctx.moveTo(x, y);
-                    ctx.lineTo(centerX, centerY);
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(w / 2, h / 2);
                     ctx.stroke();
                 }
 
-                // Vykreslení samotného čtverce
-                ctx.strokeRect(x - size / 2, y - size / 2, size, size);
+                // Vlastní vykreslení čtverce
+                // Přidáváme mírný "jitter" (chvění), aby to vypadalo jako náčrt z obrázku
+                const jitter = keys.q ? 0 : Math.random() * 1; 
+                ctx.strokeRect(
+                    screenX - size / 2 + jitter, 
+                    screenY - size / 2 + jitter, 
+                    size, 
+                    size
+                );
             }
         }
     }
@@ -83,5 +89,6 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
+// Spuštění
 resize();
 draw();
