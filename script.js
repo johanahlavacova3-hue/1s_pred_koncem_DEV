@@ -3,10 +3,10 @@
 // ==========================================
 
 var NPC_COUNT = 130;          
-var PARTICLE_SIZE = 5;        
-var SPEED = 0.1;             
+var PARTICLE_SIZE = 6;        
+var SPEED = 0.4;             
 var FRICTION = 0.90;          
-var HUG_DIST = 10;           // Vzdálenost, kdy se mraky začnou natahovat k sobě
+var HUG_DIST = 100;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
 var TRAIL_LENGTH = 15;        
 
 const canvas = document.getElementById("canvas");
@@ -32,9 +32,10 @@ class TechEntity {
         this.isPlayer = isPlayer;
         this.history = [];
         this.isHugging = false; 
-        this.mistSize = 1.0; // Koeficient roztažení mlhy
+        this.flash = 0;      // Logika pro klávesu E
+        this.mistSize = 1.0; 
         
-        // AI Logika nezkušeného hráče
+        // AI Logika
         this.inputX = 0; this.inputY = 0;
         this.moveTimer = 0;
         this.hugTimer = Math.random() * 200; 
@@ -44,12 +45,17 @@ class TechEntity {
         let accX = 0, accY = 0;
 
         if (this.isPlayer) {
+            // POHYB
             if (keys['w']) accY = -1;
             if (keys['s']) accY = 1;
             if (keys['a']) accX = -1;
             if (keys['d']) accX = 1;
-            this.isHugging = keys['q'];      
+            
+            // SIGNÁLY (Q a E)
+            this.isHugging = keys['q'];      // Držení Q roztahuje mlhu
+            if (keys['e']) this.flash = 1.0; // Stisknutí E vyvolá bliknutí
         } else {
+            // AI CHOVÁNÍ (Nezkušený hráč)
             this.moveTimer--;
             if (this.moveTimer <= 0) {
                 this.inputX = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
@@ -62,6 +68,10 @@ class TechEntity {
             if (this.y > canvas.height - 30) this.inputY = -1;
             accX = this.inputX; accY = this.inputY;
 
+            // Náhodné blikání NPC
+            if (Math.random() < 0.005) this.flash = 1.0;
+
+            // Náhodné zkoušení objetí (Q)
             this.hugTimer--;
             if (this.hugTimer <= 0) {
                 this.isHugging = !this.isHugging; 
@@ -76,8 +86,11 @@ class TechEntity {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // Resetování velikosti mlhy pro plynulý návrat
-        if (this.mistSize > 1.0) this.mistSize -= 0.05;
+        // Postupné zhasínání flash efektu (E)
+        if (this.flash > 0) this.flash -= 0.04;
+
+        // Plynulý návrat velikosti mlhy
+        if (this.mistSize > 1.0) this.mistSize -= 0.08;
 
         this.history.unshift({x: this.x, y: this.y});
         if (this.history.length > TRAIL_LENGTH) this.history.pop();
@@ -86,11 +99,12 @@ class TechEntity {
     draw() {
         this.history.forEach((pos, index) => {
             let progress = 1 - (index / TRAIL_LENGTH);
-            // Čím víc je entita v "objetí", tím větší a rozmazanější jsou čtverečky
-            let currentSize = PARTICLE_SIZE * progress * this.mistSize; 
             
-            // Efekt prolnutí (nižší alpha při roztažení)
-            let alpha = (progress * 0.3) / this.mistSize;
+            // Výpočet velikosti: základní + roztažení (Q) + bliknutí (E)
+            let currentSize = PARTICLE_SIZE * progress * (this.mistSize + this.flash * 2); 
+            
+            // Výpočet jasu: základní + bliknutí (E)
+            let alpha = ((progress * 0.3) / this.mistSize) + (this.flash * progress * 0.5);
 
             ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
             ctx.fillRect(pos.x - currentSize/2, pos.y - currentSize/2, currentSize, currentSize);
@@ -105,11 +119,10 @@ for (let i = 0; i < NPC_COUNT; i++) {
 }
 
 function loop() {
-    // Používáme mírný fade efekt pro pocit husté mlhy
-    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Detekce blízkosti pro "množení" mlhy
+    // LOGIKA PROPOJENÍ MLH
     for (let i = 0; i < entities.length; i++) {
         let e1 = entities[i];
         if (!e1.isHugging) continue;
@@ -123,14 +136,16 @@ function loop() {
             let distSq = dx*dx + dy*dy;
 
             if (distSq < HUG_DIST * HUG_DIST) {
-                // Místo čáry zvětšíme mraky obou entit
-                let boost = (1 - (Math.sqrt(distSq) / HUG_DIST)) * 3;
-                e1.mistSize = Math.max(e1.mistSize, 1 + boost);
-                e2.mistSize = Math.max(e2.mistSize, 1 + boost);
+                let dist = Math.sqrt(distSq);
+                let strength = 1 - (dist / HUG_DIST);
                 
-                // Přidáme náhodné "pixelové jiskry" mezi nimi pro efekt tření mlhy
-                if (Math.random() > 0.5) {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                // Obě mlhy se zvětší (roztáhnou k sobě)
+                e1.mistSize = Math.max(e1.mistSize, 1 + strength * 2.5);
+                e2.mistSize = Math.max(e2.mistSize, 1 + strength * 2.5);
+                
+                // Jiskření mezi nimi
+                if (Math.random() > 0.4) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${strength})`;
                     ctx.fillRect(e1.x - dx*Math.random(), e1.y - dy*Math.random(), 2, 2);
                 }
             }
