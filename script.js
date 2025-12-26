@@ -2,16 +2,12 @@
 // KONFIGURACE
 // ==========================================
 
-var TRAIL_LENGTH = 25;        
-var PARTICLE_SIZE = 7;        
-var SPEED = 0.45;             // Mírně rychlejší pro pocit zmatenosti
-var FRICTION = 0.90;          // Menší klouzavost, víc "zasekaný" pohyb
-var HUG_DIST = 85;            // Větší dosah pro spojení
+var TRAIL_LENGTH = 20;        
+var PARTICLE_SIZE = 6;        
+var SPEED = 0.45;             
+var FRICTION = 0.90;          
+var HUG_DIST = 90;            // Mírně zvětšený dosah
 var NPC_COUNT = 130;          
-
-// ==========================================
-// JÁDRO PROGRAMU
-// ==========================================
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -34,15 +30,12 @@ class TechEntity {
         this.vx = 0;
         this.vy = 0;
         this.isPlayer = isPlayer;
-        
-        // VŠE STEJNĚ BÍLÉ
         this.baseColor = "255, 255, 255"; 
         this.history = [];
-        
         this.flash = 0;      
         this.isHugging = false; 
         
-        // AI LOGIKA - NEZKUŠENÝ HRÁČ
+        // AI logika nezkušeného hráče
         this.inputX = 0; 
         this.inputY = 0;
         this.moveTimer = 0;
@@ -50,8 +43,7 @@ class TechEntity {
     }
 
     update() {
-        let accX = 0;
-        let accY = 0;
+        let accX = 0, accY = 0;
 
         if (this.isPlayer) {
             if (keys['w']) accY = -1;
@@ -60,39 +52,24 @@ class TechEntity {
             if (keys['d']) accX = 1;
             if (keys['e']) this.flash = 1.0; 
             this.isHugging = keys['q'];      
-        } 
-        else {
-            // NPC - CHOVÁNÍ ZAČÁTEČNÍKA
+        } else {
             this.moveTimer--;
             if (this.moveTimer <= 0) {
-                // Často dělají chyby nebo se zastavují
-                if (Math.random() < 0.2) {
-                    this.inputX = 0; this.inputY = 0;
-                } else {
-                    // Trhaný pohyb do stran
-                    this.inputX = Math.floor(Math.random() * 3) - 1; 
-                    this.inputY = Math.floor(Math.random() * 3) - 1; 
-                }
-                this.moveTimer = Math.random() * 40 + 10; // Častější změny směru než profík
+                this.inputX = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
+                this.inputY = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
+                this.moveTimer = Math.random() * 40 + 10;
             }
-            
-            // Odrážení od krajů
             if (this.x < 30) this.inputX = 1;
             if (this.x > canvas.width - 30) this.inputX = -1;
             if (this.y < 30) this.inputY = 1;
             if (this.y > canvas.height - 30) this.inputY = -1;
+            accX = this.inputX; accY = this.inputY;
 
-            accX = this.inputX;
-            accY = this.inputY;
-
-            // Častější náhodné blikání (hledají se)
-            if (Math.random() < 0.01) this.flash = 1.0;
-
-            // Často zmateně zapínají a vypínají Q
+            if (Math.random() < 0.008) this.flash = 0.8;
             this.hugTimer--;
             if (this.hugTimer <= 0) {
                 this.isHugging = !this.isHugging; 
-                this.hugTimer = Math.random() * 100 + 20;
+                this.hugTimer = Math.random() * 120 + 30;
             }
         }
 
@@ -103,49 +80,29 @@ class TechEntity {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        if (this.flash > 0) this.flash -= 0.05;
-
+        if (this.flash > 0) this.flash -= 0.04;
         this.history.unshift({x: this.x, y: this.y});
         if (this.history.length > TRAIL_LENGTH) this.history.pop();
     }
 
     draw() {
-        // STOPA - ČTVERCE
         this.history.forEach((pos, index) => {
             let progress = 1 - (index / TRAIL_LENGTH);
             let size = PARTICLE_SIZE * progress; 
-            let alpha = progress * (this.isPlayer ? 0.4 : 0.2);
-
-            ctx.fillStyle = `rgba(${this.baseColor}, ${alpha})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${progress * 0.2})`;
             ctx.fillRect(pos.x - size/2, pos.y - size/2, size, size);
         });
 
-        // HLAVA - ČTVEREC
-        let headSize = PARTICLE_SIZE + (this.flash * 6);
-        ctx.fillStyle = `rgba(${this.baseColor}, ${this.isPlayer ? 1.0 : 0.8})`;
+        let headSize = PARTICLE_SIZE + (this.flash * 8);
+        ctx.fillStyle = "white";
         ctx.fillRect(this.x - headSize/2, this.y - headSize/2, headSize, headSize);
-
-        // INDIKACE DRŽENÍ Q (Jemný čtvercový obrys)
-        if (this.isHugging) {
-            ctx.strokeStyle = `rgba(255, 255, 255, 0.2)`; 
-            ctx.strokeRect(this.x - 12, this.y - 12, 24, 24);
-        }
     }
 }
 
 const entities = [];
-const player = new TechEntity(window.innerWidth/2, window.innerHeight/2, true);
-entities.push(player);
-
+entities.push(new TechEntity(window.innerWidth/2, window.innerHeight/2, true));
 for (let i = 0; i < NPC_COUNT; i++) {
     entities.push(new TechEntity(Math.random() * canvas.width, Math.random() * canvas.height, false));
-}
-
-function drawGrain() {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-    for(let i=0; i<300; i++) {
-        ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1, 1);
-    }
 }
 
 function loop() {
@@ -154,38 +111,53 @@ function loop() {
 
     entities.forEach(e => e.update());
 
-    // VÝRAZNĚJŠÍ SPOJENÍ (OBJETÍ)
-    ctx.lineWidth = 2; // Tlustší čára
-    
+    // --- VÝRAZNÉ SPOJENÍ ---
     for (let i = 0; i < entities.length; i++) {
         let e1 = entities[i];
-        if (!e1.isHugging) continue; 
+        if (!e1.isHugging) continue;
 
         for (let j = i + 1; j < entities.length; j++) {
             let e2 = entities[j];
-            if (!e2.isHugging) continue; 
+            if (!e2.isHugging) continue;
 
             let dx = e1.x - e2.x;
             let dy = e1.y - e2.y;
-            let distSq = dx*dx + dy*dy; 
+            let distSq = dx*dx + dy*dy;
 
             if (distSq < HUG_DIST * HUG_DIST) {
-                // Jasná bílá čára
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+                // 1. Vnější záře (Glow)
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "white";
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                ctx.lineWidth = 4;
                 ctx.beginPath();
                 ctx.moveTo(e1.x, e1.y);
                 ctx.lineTo(e2.x, e2.y);
                 ctx.stroke();
+
+                // 2. Hlavní jasná linka
+                ctx.shadowBlur = 0; 
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // 3. Jiskry mezi hráči
+                if (Math.random() > 0.7) {
+                    let t = Math.random();
+                    let jx = e1.x + dx * t;
+                    let jy = e1.y + dy * t;
+                    ctx.fillStyle = "white";
+                    ctx.fillRect(jx - 1, jy - 1, 2, 2);
+                }
                 
-                // Efekt propojení - oba se rozzáří
-                if (e1.flash < 0.3) e1.flash += 0.02;
-                if (e2.flash < 0.3) e2.flash += 0.02;
+                // Mírné buzení flash efektu při aktivním spojení
+                e1.flash = Math.max(e1.flash, 0.2);
+                e2.flash = Math.max(e2.flash, 0.2);
             }
         }
     }
 
     entities.forEach(e => e.draw());
-    drawGrain();
     requestAnimationFrame(loop);
 }
 
