@@ -3,33 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Grid Efekt</title>
+    <title>3D Grid Perspective</title>
     <style>
         body { 
             margin: 0; 
             overflow: hidden; 
-            background-color: #000; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0d0d0d; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         canvas { 
             display: block; 
         }
-        #ui {
-            position: absolute; 
-            top: 20px; 
-            left: 20px; 
-            color: rgba(255, 255, 255, 0.5);
-            pointer-events: none; 
-            text-transform: uppercase; 
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            color: #444;
+            font-family: monospace;
             letter-spacing: 2px;
-            font-size: 12px;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div id="ui">Drž [Q] Záře | Drž [E] Propojení</div>
-    <canvas id="canvas"></canvas>
-
+    <div id="instructions">[Q] ROZZÁŘIT | [E] PROPOJIT</div>
+    <canvas id="gridCanvas"></canvas>
     <script src="script.js"></script>
 </body>
 </html>
