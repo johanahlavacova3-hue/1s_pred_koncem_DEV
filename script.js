@@ -106,7 +106,7 @@ class TechEntity {
             // Výpočet jasu: základní + bliknutí (E)
             let alpha = ((progress * 0.3) / this.mistSize) + (this.flash * progress * 0.5);
 
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.fillStyle = `rgba(142, 149, 246, ${alpha})`;
             ctx.fillRect(pos.x - currentSize/2, pos.y - currentSize/2, currentSize, currentSize);
         });
     }
