@@ -2,7 +2,7 @@
 // KONFIGURACE
 // ==========================================
 
-var NPC_COUNT = 150;          
+var NPC_COUNT = 10;          
 var PARTICLE_SIZE = 3;        
 var SPEED = 0.05;             
 var FRICTION = 0.90;          
