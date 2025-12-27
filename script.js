@@ -5,7 +5,7 @@
 var NPC_COUNT = 120;          
 var PARTICLE_SIZE = 5;        
 var SPEED = 0.01;             
-var FRICTION = 1;          
+var FRICTION = 0.5;          
 var HUG_DIST = 100;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
 var TRAIL_LENGTH = 15;        
 
