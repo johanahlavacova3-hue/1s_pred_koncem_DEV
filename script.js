@@ -2,9 +2,9 @@
 // KONFIGURACE
 // ==========================================
 
-var NPC_COUNT = 10;          
+var NPC_COUNT = 5;          
 var PARTICLE_SIZE = 50;        
-var SPEED = 0.01;             
+var SPEED = 0.02;             
 var FRICTION = 1;          
 var HUG_DIST = 2000;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
 var TRAIL_LENGTH = 150;        
