@@ -2,12 +2,12 @@
 // KONFIGURACE
 // ==========================================
 
-var NPC_COUNT = 5;          
-var PARTICLE_SIZE = 50;        
-var SPEED = 0.02;             
+var NPC_COUNT = 120;          
+var PARTICLE_SIZE = 5;        
+var SPEED = 0.01;             
 var FRICTION = 1;          
-var HUG_DIST = 2000;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
-var TRAIL_LENGTH = 150;        
+var HUG_DIST = 200;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
+var TRAIL_LENGTH = 15;        
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
