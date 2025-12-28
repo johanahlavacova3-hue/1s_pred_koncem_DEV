@@ -1,13 +1,11 @@
 // ==========================================
-// KONFIGURACE
+// KONFIGURACE - SIMULACE JEDNÉ BUŇKY
 // ==========================================
 
-var NPC_COUNT = 120;          
-var PARTICLE_SIZE = 5;        
-var SPEED = 0.01;             
-var FRICTION = 1;          
-var HUG_DIST = 200;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
-var TRAIL_LENGTH = 15;        
+var PARTICLE_SIZE = 60;       // Zvětšeno pro náhled (cca 100px s efekty)
+var SPEED = 0.2;              // Zpomaleno, aby to bylo "těžkotonážní"
+var FRICTION = 0.94;          // Větší tření, aby se držela na místě
+var TRAIL_LENGTH = 20;        // Delší ocas pro hezčí efekt
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -19,79 +17,67 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-const keys = {};
-window.addEventListener("keydown", (e) => keys[e.key.toLowerCase()] = true);
-window.addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
-
-class TechEntity {
-    constructor(x, y, isPlayer = false) {
-        this.x = x;
-        this.y = y;
+class DemoEntity {
+    constructor() {
+        this.x = canvas.width / 2;
+        this.y = canvas.height / 2;
         this.vx = 0;
         this.vy = 0;
-        this.isPlayer = isPlayer;
+        
+        // Vizuální stavy
         this.history = [];
         this.isHugging = false; 
-        this.flash = 0;      // Logika pro klávesu E
+        this.flash = 0;      
         this.mistSize = 1.0; 
         
-        // AI Logika
-        this.inputX = 0; this.inputY = 0;
-        this.moveTimer = 0;
-        this.hugTimer = Math.random() * 200; 
+        // Časovače pro automatickou simulaci chování
+        this.simTimer = 0;
     }
 
     update() {
-        let accX = 0, accY = 0;
+        this.simTimer++;
 
-        if (this.isPlayer) {
-            // POHYB
-            if (keys['w']) accY = -1;
-            if (keys['s']) accY = 1;
-            if (keys['a']) accX = -1;
-            if (keys['d']) accX = 1;
-            
-            // SIGNÁLY (Q a E)
-            this.isHugging = keys['q'];      // Držení Q roztahuje mlhu
-            if (keys['e']) this.flash = 1.0; // Stisknutí E vyvolá bliknutí
-        } else {
-            // AI CHOVÁNÍ (Nezkušený hráč)
-            this.moveTimer--;
-            if (this.moveTimer <= 0) {
-                this.inputX = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
-                this.inputY = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
-                this.moveTimer = Math.random() * 40 + 10;
-            }
-            if (this.x < 30) this.inputX = 1;
-            if (this.x > canvas.width - 30) this.inputX = -1;
-            if (this.y < 30) this.inputY = 1;
-            if (this.y > canvas.height - 30) this.inputY = -1;
-            accX = this.inputX; accY = this.inputY;
-
-            // Náhodné blikání NPC
-            if (Math.random() < 0.005) this.flash = 1.0;
-
-            // Náhodné zkoušení objetí (Q)
-            this.hugTimer--;
-            if (this.hugTimer <= 0) {
-                this.isHugging = !this.isHugging; 
-                this.hugTimer = Math.random() * 120 + 30;
-            }
+        // 1. SIMULACE CHOVÁNÍ (Automaticky spouští efekty)
+        // Každých 120 snímků (cca 2 sekundy) blikne (E)
+        if (this.simTimer % 200 === 0) {
+            this.flash = 1.0;
         }
 
-        this.vx += accX * SPEED;
-        this.vy += accY * SPEED;
+        // Každých 300 snímků přepne režim "Objetí" (Q)
+        if (this.simTimer % 300 === 0) {
+            this.isHugging = !this.isHugging;
+        }
+
+        // Pokud je v režimu "HUG" a nemá sousedy, musíme simulovat růst mlhy uměle
+        if (this.isHugging) {
+            // Pulzování velikosti mlhy
+            this.mistSize = 1.5 + Math.sin(this.simTimer * 0.1) * 0.2;
+        } else {
+            // Návrat do normálu
+            if (this.mistSize > 1.0) this.mistSize -= 0.05;
+        }
+
+        // Postupné zhasínání flash efektu
+        if (this.flash > 0) this.flash -= 0.04;
+
+        // 2. POHYB "NA MÍSTĚ"
+        // Náhodné cukání (Brownův pohyb)
+        this.vx += (Math.random() - 0.5) * SPEED;
+        this.vy += (Math.random() - 0.5) * SPEED;
+
+        // Pružina: Tahá buňku zpět do středu obrazovky
+        let dx = (canvas.width / 2) - this.x;
+        let dy = (canvas.height / 2) - this.y;
+        this.vx += dx * 0.005; 
+        this.vy += dy * 0.005;
+
+        // Aplikace fyziky
         this.x += this.vx;
         this.y += this.vy;
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // Postupné zhasínání flash efektu (E)
-        if (this.flash > 0) this.flash -= 0.04;
-
-        // Plynulý návrat velikosti mlhy
-        if (this.mistSize > 1.0) this.mistSize -= 0.08;
-
+        // Ukládání stopy
         this.history.unshift({x: this.x, y: this.y});
         if (this.history.length > TRAIL_LENGTH) this.history.pop();
     }
@@ -100,62 +86,42 @@ class TechEntity {
         this.history.forEach((pos, index) => {
             let progress = 1 - (index / TRAIL_LENGTH);
             
-            // Výpočet velikosti: základní + roztažení (Q) + bliknutí (E)
-            let currentSize = PARTICLE_SIZE * progress * (this.mistSize + this.flash * 2); 
+            // Výpočet velikosti: základní + (mlha nebo bliknutí)
+            // Zde se projeví to zvětšení na 100px+
+            let currentSize = PARTICLE_SIZE * progress * (this.mistSize + this.flash * 1.5); 
             
-            // Výpočet jasu: základní + bliknutí (E)
-            let alpha = ((progress * 0.3) / this.mistSize) + (this.flash * progress * 0.5);
+            // Výpočet jasu - když je "HUG" (mistSize > 1), je trochu průhlednější
+            let alpha = ((progress * 0.4) / this.mistSize) + (this.flash * progress * 0.6);
 
-            ctx.fillStyle = `rgba(0, 249, 255, ${alpha})`;
+            // Barva: Pokud je "HUG", jde lehce do fialova, jinak tyrkysová
+            if (this.isHugging) {
+                ctx.fillStyle = `rgba(100, 200, 255, ${alpha})`; // Světlejší při hugu
+            } else {
+                ctx.fillStyle = `rgba(0, 249, 255, ${alpha})`;
+            }
+            
             ctx.fillRect(pos.x - currentSize/2, pos.y - currentSize/2, currentSize, currentSize);
         });
+
+        // Indikátor stavu (jen text pro info)
+        ctx.fillStyle = "white";
+        ctx.font = "12px monospace";
+        let status = "IDLE";
+        if (this.isHugging) status = "HUGGING (Mlha)";
+        if (this.flash > 0.1) status = "SIGNAL (Blesk)";
+        ctx.fillText(status, this.x + 40, this.y);
     }
 }
 
-const entities = [];
-entities.push(new TechEntity(window.innerWidth/2, window.innerHeight/2, true));
-for (let i = 0; i < NPC_COUNT; i++) {
-    entities.push(new TechEntity(Math.random() * canvas.width, Math.random() * canvas.height, false));
-}
+const entity = new DemoEntity();
 
 function loop() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    // Tmavší pozadí pro lepší kontrast
+    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // LOGIKA PROPOJENÍ MLH
-    for (let i = 0; i < entities.length; i++) {
-        let e1 = entities[i];
-        if (!e1.isHugging) continue;
-
-        for (let j = i + 1; j < entities.length; j++) {
-            let e2 = entities[j];
-            if (!e2.isHugging) continue;
-
-            let dx = e1.x - e2.x;
-            let dy = e1.y - e2.y;
-            let distSq = dx*dx + dy*dy;
-
-            if (distSq < HUG_DIST * HUG_DIST) {
-                let dist = Math.sqrt(distSq);
-                let strength = 1 - (dist / HUG_DIST);
-                
-                // Obě mlhy se zvětší (roztáhnou k sobě)
-                e1.mistSize = Math.max(e1.mistSize, 1 + strength * 2.5);
-                e2.mistSize = Math.max(e2.mistSize, 1 + strength * 2.5);
-                
-                // Jiskření mezi nimi
-                if (Math.random() > 0.4) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${strength})`;
-                    ctx.fillRect(e1.x - dx*Math.random(), e1.y - dy*Math.random(), 2, 2);
-                }
-            }
-        }
-    }
-
-    entities.forEach(e => {
-        e.update();
-        e.draw();
-    });
+    entity.update();
+    entity.draw();
 
     requestAnimationFrame(loop);
 }
