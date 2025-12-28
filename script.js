@@ -1,12 +1,12 @@
 // ==========================================
-// KONFIGURACE
-// ==========================================
+// KONFIG
+// =================================
 
 var NPC_COUNT = 120;          
 var PARTICLE_SIZE = 5;        
 var SPEED = 0.01;             
 var FRICTION = 1;          
-var HUG_DIST = 200;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
+var HUG_DIST = 200;           
 var TRAIL_LENGTH = 15;        
 
 const canvas = document.getElementById("canvas");
@@ -32,10 +32,10 @@ class TechEntity {
         this.isPlayer = isPlayer;
         this.history = [];
         this.isHugging = false; 
-        this.flash = 0;      // Logika pro klávesu E
+        this.flash = 0;      // E
         this.mistSize = 1.0; 
         
-        // AI Logika
+        // AI
         this.inputX = 0; this.inputY = 0;
         this.moveTimer = 0;
         this.hugTimer = Math.random() * 200; 
@@ -51,11 +51,11 @@ class TechEntity {
             if (keys['a']) accX = -1;
             if (keys['d']) accX = 1;
             
-            // SIGNÁLY (Q a E)
-            this.isHugging = keys['q'];      // Držení Q roztahuje mlhu
-            if (keys['e']) this.flash = 1.0; // Stisknutí E vyvolá bliknutí
+            // Q a E
+            this.isHugging = keys['q'];      // Q mlhA
+            if (keys['e']) this.flash = 1.0; // E bliK
         } else {
-            // AI CHOVÁNÍ (Nezkušený hráč)
+            // AI 
             this.moveTimer--;
             if (this.moveTimer <= 0) {
                 this.inputX = Math.random() < 0.2 ? 0 : Math.floor(Math.random() * 3) - 1;
@@ -68,10 +68,10 @@ class TechEntity {
             if (this.y > canvas.height - 30) this.inputY = -1;
             accX = this.inputX; accY = this.inputY;
 
-            // Náhodné blikání NPC
+            // blikání NPC
             if (Math.random() < 0.005) this.flash = 1.0;
 
-            // Náhodné zkoušení objetí (Q)
+            // Náhodné zkoušení objetí NPC
             this.hugTimer--;
             if (this.hugTimer <= 0) {
                 this.isHugging = !this.isHugging; 
@@ -86,10 +86,10 @@ class TechEntity {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
 
-        // Postupné zhasínání flash efektu (E)
+        // E
         if (this.flash > 0) this.flash -= 0.04;
 
-        // Plynulý návrat velikosti mlhy
+        // mlha easeout
         if (this.mistSize > 1.0) this.mistSize -= 0.08;
 
         this.history.unshift({x: this.x, y: this.y});
@@ -100,10 +100,10 @@ class TechEntity {
         this.history.forEach((pos, index) => {
             let progress = 1 - (index / TRAIL_LENGTH);
             
-            // Výpočet velikosti: základní + roztažení (Q) + bliknutí (E)
+            // basic + Q a E
             let currentSize = PARTICLE_SIZE * progress * (this.mistSize + this.flash * 2); 
             
-            // Výpočet jasu: základní + bliknutí (E)
+            // basic + E
             let alpha = ((progress * 0.3) / this.mistSize) + (this.flash * progress * 0.5);
 
             ctx.fillStyle = `rgba(0, 249, 255, ${alpha})`;
@@ -122,7 +122,7 @@ function loop() {
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // LOGIKA PROPOJENÍ MLH
+    // objetí -----------------
     for (let i = 0; i < entities.length; i++) {
         let e1 = entities[i];
         if (!e1.isHugging) continue;
@@ -139,11 +139,11 @@ function loop() {
                 let dist = Math.sqrt(distSq);
                 let strength = 1 - (dist / HUG_DIST);
                 
-                // Obě mlhy se zvětší (roztáhnou k sobě)
+                // mlhy s e spoji
                 e1.mistSize = Math.max(e1.mistSize, 1 + strength * 2.5);
                 e2.mistSize = Math.max(e2.mistSize, 1 + strength * 2.5);
                 
-                // Jiskření mezi nimi
+                // jiskra
                 if (Math.random() > 0.4) {
                     ctx.fillStyle = `rgba(255, 255, 255, ${strength})`;
                     ctx.fillRect(e1.x - dx*Math.random(), e1.y - dy*Math.random(), 2, 2);
@@ -161,3 +161,6 @@ function loop() {
 }
 
 loop();
+
+
+//koneeec
