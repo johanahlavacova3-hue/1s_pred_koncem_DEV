@@ -3,7 +3,7 @@
 // ==========================================
 
 var NPC_COUNT = 1;          
-var PARTICLE_SIZE = 500;        
+var PARTICLE_SIZE = 50;        
 var SPEED = 0.01;             
 var FRICTION = 100;          
 var HUG_DIST = 2000;           // OPRAVENO: Zvětšeno z 10 na 100 pro viditelný efekt
